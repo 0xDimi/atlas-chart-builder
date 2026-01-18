@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atlas Chart Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <div class="app">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Local-only dashboard</p>
+          <h1>Atlas Chart Builder</h1>
+          <p class="subtitle">
+            Upload CSVs from DeFiLlama, Token Terminal, Artemis, Dune, CoinGecko,
+            or anywhere else and turn them into polished charts with a single
+            workspace.
+          </p>
+        </div>
+        <div class="hero-badge">
+          <span>Transparent export ready</span>
+          <span>PNG copy and download</span>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section id="chartCard" class="card chart-card">
+          <div class="chart-header">
+            <h2>Preview</h2>
+            <div class="chart-actions">
+              <div class="chip">
+                <span id="seriesCount">0 series</span>
+              </div>
+              <button id="copyPngQuick" class="secondary compact" type="button">
+                Copy PNG
+              </button>
+              <button id="downloadPngQuick" class="secondary compact" type="button">
+                Download PNG
+              </button>
+              <button id="toggleFullscreen" class="ghost compact" type="button">
+                Fullscreen
+              </button>
+            </div>
+          </div>
+          <div id="chartShell" class="chart-shell">
+            <div id="chart"></div>
+            <div class="resize-handle handle-top" data-handle="top"></div>
+            <div class="resize-handle handle-bottom" data-handle="bottom"></div>
+            <div class="resize-handle handle-left" data-handle="left"></div>
+            <div class="resize-handle handle-right" data-handle="right"></div>
+            <div class="resize-handle handle-top-left" data-handle="top-left"></div>
+            <div
+              class="resize-handle handle-top-right"
+              data-handle="top-right"
+            ></div>
+            <div
+              class="resize-handle handle-bottom-left"
+              data-handle="bottom-left"
+            ></div>
+            <div
+              class="resize-handle handle-bottom-right"
+              data-handle="bottom-right"
+            ></div>
+          </div>
+          <div id="quickTextEditor" class="quick-editor is-hidden" role="dialog" aria-label="Axis text editor">
+            <div class="quick-header">
+              <div>
+                <h3>Axis text</h3>
+                <p id="quickAxisTarget" class="hint">Click an axis label to edit.</p>
+              </div>
+              <button id="closeQuickText" class="ghost compact" type="button">
+                Close
+              </button>
+            </div>
+            <div class="quick-grid">
+              <label data-quick-group="label">
+                <span class="quick-label" data-quick-text="label-size"
+                  >Label size</span
+                >
+                <input
+                  id="quickAxisLabelSize"
+                  type="number"
+                  min="8"
+                  max="26"
+                />
+              </label>
+              <label data-quick-group="name">
+                <span class="quick-label" data-quick-text="name-size"
+                  >Name size</span
+                >
+                <input
+                  id="quickAxisNameSize"
+                  type="number"
+                  min="8"
+                  max="30"
+                />
+              </label>
+              <label data-quick-group="label">
+                <span class="quick-label" data-quick-text="label-font"
+                  >Label font</span
+                >
+                <select id="quickAxisLabelFont">
+                  <option value="inherit">Chart font</option>
+                  <option value="Space Grotesk">Space Grotesk</option>
+                  <option value="Source Sans 3">Source Sans 3</option>
+                  <option value="DM Sans">DM Sans</option>
+                  <option value="IBM Plex Sans">IBM Plex Sans</option>
+                  <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                  <option value="Work Sans">Work Sans</option>
+                </select>
+              </label>
+              <label data-quick-group="label">
+                <span class="quick-label" data-quick-text="label-weight"
+                  >Label weight</span
+                >
+                <select id="quickAxisLabelWeight">
+                  <option value="inherit">Chart weight</option>
+                  <option value="400">Regular</option>
+                  <option value="500">Medium</option>
+                  <option value="600">Semibold</option>
+                  <option value="700">Bold</option>
+                </select>
+              </label>
+              <label data-quick-group="name">
+                <span class="quick-label" data-quick-text="name-font"
+                  >Name font</span
+                >
+                <select id="quickAxisNameFont">
+                  <option value="inherit">Chart font</option>
+                  <option value="Space Grotesk">Space Grotesk</option>
+                  <option value="Source Sans 3">Source Sans 3</option>
+                  <option value="DM Sans">DM Sans</option>
+                  <option value="IBM Plex Sans">IBM Plex Sans</option>
+                  <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                  <option value="Work Sans">Work Sans</option>
+                </select>
+              </label>
+              <label data-quick-group="name">
+                <span class="quick-label" data-quick-text="name-weight"
+                  >Name weight</span
+                >
+                <select id="quickAxisNameWeight">
+                  <option value="inherit">Chart weight</option>
+                  <option value="400">Regular</option>
+                  <option value="500">Medium</option>
+                  <option value="600">Semibold</option>
+                  <option value="700">Bold</option>
+                </select>
+              </label>
+            </div>
+            <p class="hint">Tip: click any axis label or axis name to reopen here.</p>
+          </div>
+        </section>
+        <section class="controls">
+          <div class="control-toolbar">
+            <div class="tab-list" role="tablist" aria-label="Editor sections">
+              <button
+                class="tab-button is-active"
+                data-tab-button="data"
+                role="tab"
+                aria-selected="true"
+                type="button"
+              >
+                Data
+              </button>
+              <button
+                class="tab-button"
+                data-tab-button="series"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                Series
+              </button>
+              <button
+                class="tab-button"
+                data-tab-button="axes"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                Axes
+              </button>
+              <button
+                class="tab-button"
+                data-tab-button="annotations"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                Annotations
+              </button>
+              <button
+                class="tab-button"
+                data-tab-button="style"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                Style & export
+              </button>
+              <button
+                class="tab-button"
+                data-tab-button="advanced"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                Advanced
+              </button>
+            </div>
+            <button id="toggleLayout" class="ghost compact" type="button">
+              Show all
+            </button>
+          </div>
+
+          <div class="panel" id="controlPanel" data-view="tabs">
+            <div class="panel-page is-active" data-panel="data" role="tabpanel">
+              <section class="card">
+                <div class="card-title">
+                  <h2>Data</h2>
+                  <span id="dataStatus" class="status">No CSV loaded</span>
+                </div>
+                <div class="field">
+                  <label for="csvFile">Upload CSV(s)</label>
+                  <input id="csvFile" type="file" accept=".csv" multiple />
+                </div>
+                <div class="field">
+                  <label for="csvPaste">Or paste CSV</label>
+                  <textarea
+                    id="csvPaste"
+                    rows="4"
+                    placeholder="Paste CSV with a header row"
+                  ></textarea>
+                  <button id="parsePaste" class="secondary">
+                    Parse pasted CSV
+                  </button>
+                </div>
+                <div class="field row">
+                  <button id="loadSample">Load sample dataset</button>
+                  <button id="clearData" class="ghost">Clear active</button>
+                  <button id="clearAllData" class="ghost">Clear all</button>
+                </div>
+                <div class="field">
+                  <label>Datasets</label>
+                  <div id="datasetList" class="pill-list"></div>
+                </div>
+                <details class="preview-details">
+                  <summary>Preview (first 8 rows)</summary>
+                  <div class="preview" id="dataPreview"></div>
+                </details>
+              </section>
+
+              <section class="card">
+                <div class="card-title">
+                  <h2>API connectors</h2>
+                  <span id="apiStatus" class="status"></span>
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="apiProvider">Provider</label>
+                    <select id="apiProvider">
+                      <option value="defillama">DefiLlama</option>
+                      <option value="tokenterminal">Token Terminal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="apiDatasetName">Dataset name</label>
+                    <input
+                      id="apiDatasetName"
+                      type="text"
+                      placeholder="DefiLlama TVL"
+                    />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="apiEndpoint">Endpoint path or full URL</label>
+                  <input
+                    id="apiEndpoint"
+                    type="text"
+                    placeholder="/protocol/ethereum or https://..."
+                  />
+                </div>
+                <div class="field">
+                  <label for="apiJsonPath">JSON array path (optional)</label>
+                  <input
+                    id="apiJsonPath"
+                    type="text"
+                    placeholder="data.items"
+                  />
+                </div>
+                <div class="field row">
+                  <button id="apiFetch" class="secondary" type="button">
+                    Fetch dataset
+                  </button>
+                  <button id="apiClear" class="ghost" type="button">
+                    Clear fields
+                  </button>
+                </div>
+                <p class="hint">
+                  Uses your local API keys via the built-in proxy server.
+                </p>
+              </section>
+
+              <section class="card">
+                <h2>Projects & templates</h2>
+                <div class="field">
+                  <label for="projectName">Project name</label>
+                  <input
+                    id="projectName"
+                    type="text"
+                    placeholder="My chart deck"
+                  />
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="projectSelect">Saved projects</label>
+                    <select id="projectSelect"></select>
+                  </div>
+                  <button id="loadProject" class="secondary">Load</button>
+                </div>
+                <div class="field row">
+                  <button id="newProject" class="ghost">New</button>
+                  <button id="saveProject">Save</button>
+                  <button id="saveAsProject" class="secondary">Save as</button>
+                  <button id="duplicateProject" class="secondary">
+                    Duplicate
+                  </button>
+                  <button id="deleteProject" class="ghost">Delete</button>
+                </div>
+                <div class="field">
+                  <label for="historySelect">History snapshots</label>
+                  <select id="historySelect"></select>
+                </div>
+                <div class="field row">
+                  <button id="restoreHistory" class="secondary">Restore</button>
+                  <button id="branchHistory" class="ghost">Branch</button>
+                </div>
+                <div class="field">
+                  <label for="templateSelect">Templates</label>
+                  <select id="templateSelect"></select>
+                </div>
+                <div class="field row">
+                  <button id="applyTemplate" class="secondary">
+                    Apply template
+                  </button>
+                </div>
+                <p id="projectStatus" class="status"></p>
+              </section>
+            </div>
+
+            <div class="panel-page" data-panel="series" role="tabpanel">
+              <section class="card">
+                <h2>Series</h2>
+                <div class="field">
+                  <label for="xColumn">X axis column</label>
+                  <select id="xColumn"></select>
+                </div>
+                <div class="field" id="yColumnsField">
+                  <label>Y series columns</label>
+                  <div id="yColumns" class="checkbox-grid"></div>
+                </div>
+                <div class="field">
+                  <label for="chartType">Chart type</label>
+                  <select id="chartType">
+                    <option value="line">Line</option>
+                    <option value="area">Area</option>
+                    <option value="bar">Bar</option>
+                    <option value="scatter">Scatter</option>
+                    <option value="combo">Combo</option>
+                    <option value="waterfall">Waterfall</option>
+                    <option value="histogram">Histogram</option>
+                    <option value="boxplot">Box plot</option>
+                  </select>
+                </div>
+                <div id="comboDefaults" class="field row">
+                  <div>
+                    <label for="comboDefaultType">Combo default</label>
+                    <select id="comboDefaultType">
+                      <option value="line">Line</option>
+                      <option value="area">Area</option>
+                      <option value="bar">Bar</option>
+                      <option value="scatter">Scatter</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="histogramOptions" class="field row">
+                  <div>
+                    <label for="histogramColumn">Histogram column</label>
+                    <select id="histogramColumn"></select>
+                  </div>
+                  <div>
+                    <label for="histogramBins">Bins</label>
+                    <input
+                      id="histogramBins"
+                      type="number"
+                      min="3"
+                      max="60"
+                      value="12"
+                    />
+                  </div>
+                </div>
+                <div id="waterfallOptions" class="field row">
+                  <div>
+                    <label for="waterfallColumn">Waterfall column</label>
+                    <select id="waterfallColumn"></select>
+                  </div>
+                  <div>
+                    <label for="waterfallMode">Waterfall mode</label>
+                    <select id="waterfallMode">
+                      <option value="delta">Delta vs previous</option>
+                      <option value="deltaTotal">Delta + total</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="waterfallPositive">Positive color</label>
+                    <input
+                      id="waterfallPositive"
+                      type="color"
+                      value="#0f6b63"
+                    />
+                  </div>
+                  <div>
+                    <label for="waterfallNegative">Negative color</label>
+                    <input
+                      id="waterfallNegative"
+                      type="color"
+                      value="#b3412f"
+                    />
+                  </div>
+                </div>
+                <p id="boxplotHint" class="hint">
+                  Box plot uses selected Y columns.
+                </p>
+                <div class="field row">
+                  <label class="checkbox">
+                    <input id="stacked" type="checkbox" />
+                    Stacked
+                  </label>
+                  <label class="checkbox">
+                    <input id="stackedPercent" type="checkbox" />
+                    Stacked 100%
+                  </label>
+                  <label class="checkbox">
+                    <input id="smooth" type="checkbox" />
+                    Smooth lines
+                  </label>
+                  <label class="checkbox">
+                    <input id="showSymbols" type="checkbox" checked />
+                    Show symbols
+                  </label>
+                  <label class="checkbox">
+                    <input id="showLabels" type="checkbox" />
+                    Show labels
+                  </label>
+                  <label class="checkbox">
+                    <input id="sortByX" type="checkbox" />
+                    Sort by X
+                  </label>
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="lineWidth">Line width</label>
+                    <input
+                      id="lineWidth"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value="2"
+                    />
+                  </div>
+                  <div>
+                    <label for="symbolSize">Symbol size</label>
+                    <input
+                      id="symbolSize"
+                      type="number"
+                      min="2"
+                      max="20"
+                      value="6"
+                    />
+                  </div>
+                  <div>
+                    <label for="areaOpacity">Area opacity</label>
+                    <input
+                      id="areaOpacity"
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value="0.3"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section class="card">
+                <h2>Series overrides</h2>
+                <p class="hint">
+                  Control per-series axis, color, markers, smoothing, and
+                  trendlines.
+                </p>
+                <div id="seriesOverrides" class="series-overrides"></div>
+              </section>
+            </div>
+
+            <div class="panel-page" data-panel="axes" role="tabpanel">
+              <section class="card">
+                <h2>Axes</h2>
+                <div class="field row">
+                  <div>
+                    <label for="xAxisType">X axis type</label>
+                    <select id="xAxisType">
+                      <option value="category">Category</option>
+                      <option value="time">Time</option>
+                      <option value="value">Value</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="yScale">Y scale</label>
+                    <select id="yScale">
+                      <option value="linear">Linear</option>
+                      <option value="log">Log</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="yScaleRight">Y scale right</label>
+                    <select id="yScaleRight">
+                      <option value="linear">Linear</option>
+                      <option value="log">Log</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="xAxisLabel">X axis label</label>
+                  <input id="xAxisLabel" type="text" placeholder="Date" />
+                </div>
+                <div class="field">
+                  <label for="yAxisLabel">Y axis label</label>
+                  <input id="yAxisLabel" type="text" placeholder="Value" />
+                </div>
+                <div class="field">
+                  <label for="yAxisRightLabel">Y axis right label</label>
+                  <input
+                    id="yAxisRightLabel"
+                    type="text"
+                    placeholder="Right axis"
+                  />
+                </div>
+                <h3>X axis text</h3>
+                <div class="axis-grid">
+                  <label>
+                    Label size
+                    <input
+                      id="xAxisLabelSize"
+                      type="number"
+                      min="8"
+                      max="26"
+                      value="12"
+                    />
+                  </label>
+                  <label>
+                    Name size
+                    <input
+                      id="xAxisNameSize"
+                      type="number"
+                      min="8"
+                      max="30"
+                      value="12"
+                    />
+                  </label>
+                  <label>
+                    Label font
+                    <select id="xAxisLabelFont">
+                      <option value="inherit">Chart font</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </label>
+                  <label>
+                    Label weight
+                    <select id="xAxisLabelWeight">
+                      <option value="inherit">Chart weight</option>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </label>
+                  <label>
+                    Name font
+                    <select id="xAxisNameFont">
+                      <option value="inherit">Chart font</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </label>
+                  <label>
+                    Name weight
+                    <select id="xAxisNameWeight">
+                      <option value="inherit">Chart weight</option>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </label>
+                </div>
+                <h3>Y axis text (left)</h3>
+                <div class="axis-grid">
+                  <label>
+                    Label size
+                    <input
+                      id="yAxisLabelSize"
+                      type="number"
+                      min="8"
+                      max="26"
+                      value="12"
+                    />
+                  </label>
+                  <label>
+                    Name size
+                    <input
+                      id="yAxisNameSize"
+                      type="number"
+                      min="8"
+                      max="30"
+                      value="12"
+                    />
+                  </label>
+                  <label>
+                    Label font
+                    <select id="yAxisLabelFont">
+                      <option value="inherit">Chart font</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </label>
+                  <label>
+                    Label weight
+                    <select id="yAxisLabelWeight">
+                      <option value="inherit">Chart weight</option>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </label>
+                  <label>
+                    Name font
+                    <select id="yAxisNameFont">
+                      <option value="inherit">Chart font</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </label>
+                  <label>
+                    Name weight
+                    <select id="yAxisNameWeight">
+                      <option value="inherit">Chart weight</option>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </label>
+                </div>
+                <h3>Y axis text (right)</h3>
+                <div class="axis-grid">
+                  <label>
+                    Label size
+                    <input
+                      id="yAxisRightLabelSize"
+                      type="number"
+                      min="8"
+                      max="26"
+                      value="12"
+                    />
+                  </label>
+                  <label>
+                    Name size
+                    <input
+                      id="yAxisRightNameSize"
+                      type="number"
+                      min="8"
+                      max="30"
+                      value="12"
+                    />
+                  </label>
+                  <label>
+                    Label font
+                    <select id="yAxisRightLabelFont">
+                      <option value="inherit">Chart font</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </label>
+                  <label>
+                    Label weight
+                    <select id="yAxisRightLabelWeight">
+                      <option value="inherit">Chart weight</option>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </label>
+                  <label>
+                    Name font
+                    <select id="yAxisRightNameFont">
+                      <option value="inherit">Chart font</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </label>
+                  <label>
+                    Name weight
+                    <select id="yAxisRightNameWeight">
+                      <option value="inherit">Chart weight</option>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field">
+                  <button id="openAxisEditor" class="ghost" type="button">
+                    Open axis text editor
+                  </button>
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="yMin">Y min</label>
+                    <input id="yMin" type="number" placeholder="Auto" />
+                  </div>
+                  <div>
+                    <label for="yMax">Y max</label>
+                    <input id="yMax" type="number" placeholder="Auto" />
+                  </div>
+                  <div>
+                    <label for="xAxisRotate">X label rotate</label>
+                    <input
+                      id="xAxisRotate"
+                      type="number"
+                      min="-90"
+                      max="90"
+                      value="0"
+                    />
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div class="panel-page" data-panel="annotations" role="tabpanel">
+              <section class="card">
+                <h2>Annotations</h2>
+                <div class="field row">
+                  <div>
+                    <label for="eventX">Event X</label>
+                    <input id="eventX" type="text" placeholder="2024-03-01" />
+                  </div>
+                  <div>
+                    <label for="eventLabel">Event label</label>
+                    <input id="eventLabel" type="text" placeholder="Launch" />
+                  </div>
+                  <div>
+                    <label for="eventColor">Event color</label>
+                    <input id="eventColor" type="color" value="#1a4d7a" />
+                  </div>
+                  <button id="addEvent" class="secondary">Add event</button>
+                </div>
+                <div id="eventList" class="pill-list"></div>
+                <div class="field row">
+                  <div>
+                    <label for="bandStart">Band start X</label>
+                    <input id="bandStart" type="text" placeholder="2024-02-01" />
+                  </div>
+                  <div>
+                    <label for="bandEnd">Band end X</label>
+                    <input id="bandEnd" type="text" placeholder="2024-02-28" />
+                  </div>
+                  <div>
+                    <label for="bandLabel">Band label</label>
+                    <input id="bandLabel" type="text" placeholder="Incentives" />
+                  </div>
+                  <div>
+                    <label for="bandColor">Band color</label>
+                    <input id="bandColor" type="color" value="#f08b3e" />
+                  </div>
+                  <button id="addBand" class="secondary">Add band</button>
+                </div>
+                <div id="bandList" class="pill-list"></div>
+                <div class="field row">
+                  <div>
+                    <label for="calloutX">Callout X</label>
+                    <input id="calloutX" type="text" placeholder="2024-02-12" />
+                  </div>
+                  <div>
+                    <label for="calloutY">Callout Y</label>
+                    <input id="calloutY" type="number" placeholder="120" />
+                  </div>
+                  <div>
+                    <label for="calloutLabel">Callout label</label>
+                    <input id="calloutLabel" type="text" placeholder="Spike" />
+                  </div>
+                  <div>
+                    <label for="calloutColor">Callout color</label>
+                    <input id="calloutColor" type="color" value="#0f6b63" />
+                  </div>
+                  <button id="addCallout" class="secondary">Add callout</button>
+                </div>
+                <div id="calloutList" class="pill-list"></div>
+              </section>
+            </div>
+
+            <div class="panel-page" data-panel="style" role="tabpanel">
+              <section class="card">
+                <h2>Style</h2>
+                <div class="field">
+                  <label for="chartTitle">Title</label>
+                  <input
+                    id="chartTitle"
+                    type="text"
+                    placeholder="Chart title"
+                  />
+                </div>
+                <div class="field">
+                  <label for="chartSubtitle">Subtitle</label>
+                  <input id="chartSubtitle" type="text" placeholder="Subtitle" />
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="titleLeft">Title X (px)</label>
+                    <input id="titleLeft" type="number" placeholder="8" />
+                  </div>
+                  <div>
+                    <label for="titleTop">Title Y (px)</label>
+                    <input id="titleTop" type="number" placeholder="8" />
+                  </div>
+                  <div>
+                    <label for="titleAlign">Title align</label>
+                    <select id="titleAlign">
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </div>
+                  <button id="pickTitlePosition" class="secondary" type="button">
+                    Pick position
+                  </button>
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="legendPosition">Legend position</label>
+                    <select id="legendPosition">
+                      <option value="top">Top</option>
+                      <option value="bottom">Bottom</option>
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                      <option value="none">Hidden</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="renderer">Renderer</label>
+                    <select id="renderer">
+                      <option value="canvas">Canvas</option>
+                      <option value="svg">SVG</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="palette">Color palette</label>
+                  <select id="palette">
+                    <option value="ocean">Ocean</option>
+                    <option value="ember">Ember</option>
+                    <option value="forest">Forest</option>
+                    <option value="mono">Mono</option>
+                    <option value="sand">Sand</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="customColors">Custom colors (comma separated)</label>
+                  <input
+                    id="customColors"
+                    type="text"
+                    placeholder="#1a4d7a, #f28f3b, #2f7d6b"
+                  />
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="fontFamily">Font family</label>
+                    <select id="fontFamily">
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="textColor">Text color</label>
+                    <input id="textColor" type="color" value="#1a1d1f" />
+                  </div>
+                  <div>
+                    <label for="gridColor">Grid color</label>
+                    <input id="gridColor" type="color" value="#d0d5d2" />
+                  </div>
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="titleSize">Title size</label>
+                    <input
+                      id="titleSize"
+                      type="number"
+                      min="12"
+                      max="60"
+                      value="28"
+                    />
+                  </div>
+                  <div>
+                    <label for="subtitleSize">Subtitle size</label>
+                    <input
+                      id="subtitleSize"
+                      type="number"
+                      min="10"
+                      max="40"
+                      value="14"
+                    />
+                  </div>
+                  <div>
+                    <label for="legendSize">Legend size</label>
+                    <input
+                      id="legendSize"
+                      type="number"
+                      min="10"
+                      max="28"
+                      value="12"
+                    />
+                  </div>
+                </div>
+                <div class="field row">
+                  <div>
+                    <label for="legendFont">Legend font</label>
+                    <select id="legendFont">
+                      <option value="inherit">Chart font</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Source Sans 3">Source Sans 3</option>
+                      <option value="DM Sans">DM Sans</option>
+                      <option value="IBM Plex Sans">IBM Plex Sans</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Work Sans">Work Sans</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="legendWeight">Legend weight</label>
+                    <select id="legendWeight">
+                      <option value="inherit">Chart weight</option>
+                      <option value="400">Regular</option>
+                      <option value="500">Medium</option>
+                      <option value="600">Semibold</option>
+                      <option value="700">Bold</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field row">
+                  <label class="checkbox">
+                    <input id="transparentBg" type="checkbox" checked />
+                    Transparent background
+                  </label>
+                  <div>
+                    <label for="backgroundColor">Background color</label>
+                    <input id="backgroundColor" type="color" value="#f6efe6" />
+                  </div>
+                </div>
+                <div class="field">
+                  <button id="resetChart" class="ghost" type="button">
+                    Reset chart
+                  </button>
+                </div>
+              </section>
+
+              <section class="card">
+                <h2>Export</h2>
+                <div class="field row">
+                  <div>
+                    <label for="exportName">File name</label>
+                    <input id="exportName" type="text" value="chart" />
+                  </div>
+                  <div>
+                    <label for="exportScale">Export scale</label>
+                    <input
+                      id="exportScale"
+                      type="number"
+                      min="1"
+                      max="6"
+                      value="2"
+                    />
+                  </div>
+                </div>
+                <div class="field row">
+                  <button id="copyPng">Copy PNG</button>
+                  <button id="downloadPng" class="secondary">
+                    Download PNG
+                  </button>
+                </div>
+                <p class="hint">
+                  Copy requires http://localhost. Transparent background defaults
+                  to PNG alpha.
+                </p>
+              </section>
+            </div>
+
+            <div class="panel-page" data-panel="advanced" role="tabpanel">
+              <section class="card">
+                <h2>Advanced overrides</h2>
+                <p class="hint">
+                  Paste an ECharts option JSON to override any setting.
+                </p>
+                <textarea
+                  id="advancedJson"
+                  rows="6"
+                  placeholder='{"tooltip": {"trigger": "item"}}'
+                ></textarea>
+                <div class="field row">
+                  <button id="applyAdvanced" class="secondary">
+                    Apply JSON
+                  </button>
+                  <button id="clearAdvanced" class="ghost">Clear JSON</button>
+                </div>
+                <p id="advancedStatus" class="status"></p>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
