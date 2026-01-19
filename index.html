@@ -17,7 +17,7 @@
     <div class="app">
       <header class="hero">
         <div>
-          <p class="eyebrow">Local-only dashboard</p>
+          <p class="eyebrow">CSV chart builder</p>
           <h1>Atlas Chart Builder</h1>
           <p class="subtitle">
             Upload CSVs from DeFiLlama, Token Terminal, Artemis, Dune, CoinGecko,
@@ -224,7 +224,7 @@
 
           <div class="panel" id="controlPanel" data-view="tabs">
             <div class="panel-page is-active" data-panel="data" role="tabpanel">
-              <section class="card">
+              <section class="card" id="apiCard">
                 <div class="card-title">
                   <h2>Data</h2>
                   <span id="dataStatus" class="status">No CSV loaded</span>
@@ -305,8 +305,8 @@
                     Clear fields
                   </button>
                 </div>
-                <p class="hint">
-                  Uses your local API keys via the built-in proxy server.
+                <p class="hint" id="apiHint">
+                  Local-only: requires the proxy server and API keys.
                 </p>
               </section>
 
@@ -1038,7 +1038,7 @@
                   </button>
                 </div>
                 <p class="hint">
-                  Copy requires http://localhost. Transparent background defaults
+                  Copy requires https or localhost. Transparent background defaults
                   to PNG alpha.
                 </p>
               </section>

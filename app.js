@@ -303,6 +303,7 @@ const elements = {
   clearAllData: document.getElementById("clearAllData"),
   dataStatus: document.getElementById("dataStatus"),
   dataPreview: document.getElementById("dataPreview"),
+  apiCard: document.getElementById("apiCard"),
   apiProvider: document.getElementById("apiProvider"),
   apiEndpoint: document.getElementById("apiEndpoint"),
   apiDatasetName: document.getElementById("apiDatasetName"),
@@ -310,6 +311,7 @@ const elements = {
   apiFetch: document.getElementById("apiFetch"),
   apiClear: document.getElementById("apiClear"),
   apiStatus: document.getElementById("apiStatus"),
+  apiHint: document.getElementById("apiHint"),
   datasetList: document.getElementById("datasetList"),
   projectName: document.getElementById("projectName"),
   projectSelect: document.getElementById("projectSelect"),
@@ -478,6 +480,11 @@ const state = {
   activeDatasetId: null,
 };
 
+const API_LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
+const apiEnabled =
+  typeof window !== "undefined" &&
+  API_LOCAL_HOSTS.has(window.location.hostname);
+
 let chart;
 let currentRows = [];
 let currentColumns = [];
@@ -549,6 +556,25 @@ function updateApiStatus(message, isError) {
   }
   elements.apiStatus.textContent = message;
   elements.apiStatus.style.color = isError ? "#b3412f" : "#0f6b63";
+}
+
+function setApiAvailability() {
+  if (!elements.apiCard) {
+    return;
+  }
+  if (apiEnabled) {
+    return;
+  }
+  elements.apiCard.classList.add("is-hidden");
+  elements.apiCard
+    .querySelectorAll("input, select, button")
+    .forEach((input) => {
+      input.disabled = true;
+    });
+  if (elements.apiHint) {
+    elements.apiHint.textContent =
+      "API connectors are disabled on public hosts.";
+  }
 }
 
 function updateProjectStatus(message, isError) {
@@ -1305,6 +1331,10 @@ function extractRowsFromApiResponse(payload, path, strictPath = false) {
 }
 
 async function fetchApiDataset() {
+  if (!apiEnabled) {
+    updateApiStatus("API connectors are disabled on public hosts.", true);
+    return;
+  }
   if (apiFetchInFlight) {
     return;
   }
@@ -3871,28 +3901,30 @@ function attachListeners() {
     addDataset("Sample dataset", data.rows, data.columns);
   });
 
-  if (elements.apiFetch) {
+  if (elements.apiFetch && apiEnabled) {
     elements.apiFetch.addEventListener("click", () => {
       fetchApiDataset();
     });
   }
 
-  if (elements.apiClear) {
+  if (elements.apiClear && apiEnabled) {
     elements.apiClear.addEventListener("click", () => {
       clearApiForm();
     });
   }
 
-  [elements.apiEndpoint, elements.apiDatasetName, elements.apiJsonPath]
-    .filter(Boolean)
-    .forEach((input) => {
-      input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          fetchApiDataset();
-        }
+  if (apiEnabled) {
+    [elements.apiEndpoint, elements.apiDatasetName, elements.apiJsonPath]
+      .filter(Boolean)
+      .forEach((input) => {
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            fetchApiDataset();
+          }
+        });
       });
-    });
+  }
 
   elements.clearData.addEventListener("click", () => {
     if (!state.activeDatasetId) {
@@ -4168,6 +4200,7 @@ function attachListeners() {
 state.projects = loadProjectStore();
 renderProjectSelect();
 renderTemplateSelect();
+setApiAvailability();
 initChart();
 attachListeners();
 initControlLayout();

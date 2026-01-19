@@ -4,6 +4,25 @@ const path = require("path");
 const { URL } = require("url");
 
 const ROOT_DIR = __dirname;
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function getHostName(hostHeader) {
+  if (!hostHeader) {
+    return "";
+  }
+  const trimmed = hostHeader.trim();
+  if (trimmed.startsWith("[")) {
+    const end = trimmed.indexOf("]");
+    if (end !== -1) {
+      return trimmed.slice(1, end).toLowerCase();
+    }
+  }
+  return trimmed.split(":")[0].toLowerCase();
+}
+
+function isLocalHost(hostHeader) {
+  return LOCAL_HOSTS.has(getHostName(hostHeader));
+}
 
 function loadEnvFile(filepath) {
   if (!fs.existsSync(filepath)) {
@@ -165,6 +184,12 @@ function serveStatic(req, res, url) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (url.pathname.startsWith("/api/")) {
+    if (!isLocalHost(req.headers.host)) {
+      sendJson(res, 403, {
+        error: "API connectors are disabled on public hosts.",
+      });
+      return;
+    }
     const providerKey = url.pathname.replace("/api/", "");
     handleApiRequest(req, res, providerKey, url);
     return;
