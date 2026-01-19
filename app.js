@@ -2763,12 +2763,19 @@ function updateChart() {
       chart.setOption({
         title: {
           text: "Upload a CSV to begin",
+          subtext: "Drop a file, paste data, or load a template to preview.",
           left: "center",
           top: "middle",
           textStyle: {
             fontFamily: "Space Grotesk",
             fontSize: 18,
-            color: "#5a5f61",
+            fontWeight: 600,
+            color: "#4a4f52",
+          },
+          subtextStyle: {
+            fontFamily: "DM Sans",
+            fontSize: 12,
+            color: "#6a7074",
           },
         },
       });

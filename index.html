@@ -231,7 +231,22 @@
                 </div>
                 <div class="field">
                   <label for="csvFile">Upload CSV(s)</label>
-                  <input id="csvFile" type="file" accept=".csv" multiple />
+                  <div class="file-drop">
+                    <input
+                      id="csvFile"
+                      class="file-input"
+                      type="file"
+                      accept=".csv"
+                      multiple
+                    />
+                    <div class="file-copy">
+                      <span class="file-title">Drop CSV files here</span>
+                      <span class="file-subtitle">or click to browse</span>
+                    </div>
+                  </div>
+                  <p class="hint file-hint">
+                    Supports multiple files, each with a header row.
+                  </p>
                 </div>
                 <div class="field">
                   <label for="csvPaste">Or paste CSV</label>
