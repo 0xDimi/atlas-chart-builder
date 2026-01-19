@@ -787,33 +787,44 @@ function closeQuickEditor() {
 
 function getChartDimensions() {
   const rect = elements.chartShell.getBoundingClientRect();
-  return { width: Math.round(rect.width), height: Math.round(rect.height) };
+  const style = window.getComputedStyle(elements.chartShell);
+  const left = parseFloat(style.left);
+  const top = parseFloat(style.top);
+  return {
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    left: Number.isFinite(left) ? left : 0,
+    top: Number.isFinite(top) ? top : 0,
+  };
 }
 
-function setChartDimensions(width, height) {
-  const maxWidth = elements.chartShell.parentElement
-    ? elements.chartShell.parentElement.clientWidth
-    : width;
+function setChartDimensions(width, height, left, top) {
+  let resolvedWidth = width;
+  let resolvedHeight = height;
   if (Number.isFinite(width)) {
-    const clampedWidth = Math.min(
-      Math.max(width, MIN_CHART_WIDTH),
-      maxWidth || width
-    );
-    elements.chartShell.style.width = `${clampedWidth}px`;
+    resolvedWidth = Math.max(width, MIN_CHART_WIDTH);
+    elements.chartShell.style.width = `${resolvedWidth}px`;
   }
   if (Number.isFinite(height)) {
-    const clampedHeight = Math.max(height, MIN_CHART_HEIGHT);
-    elements.chartShell.style.height = `${clampedHeight}px`;
+    resolvedHeight = Math.max(height, MIN_CHART_HEIGHT);
+    elements.chartShell.style.height = `${resolvedHeight}px`;
   }
+  if (Number.isFinite(left)) {
+    elements.chartShell.style.left = `${left}px`;
+  }
+  if (Number.isFinite(top)) {
+    elements.chartShell.style.top = `${top}px`;
+  }
+  return { width: resolvedWidth, height: resolvedHeight };
 }
 
 function clampChartSize() {
   const rect = elements.chartShell.getBoundingClientRect();
-  const maxWidth = elements.chartShell.parentElement
-    ? elements.chartShell.parentElement.clientWidth
-    : rect.width;
-  if (rect.width > maxWidth) {
-    elements.chartShell.style.width = `${maxWidth}px`;
+  if (rect.width < MIN_CHART_WIDTH) {
+    elements.chartShell.style.width = `${MIN_CHART_WIDTH}px`;
+  }
+  if (rect.height < MIN_CHART_HEIGHT) {
+    elements.chartShell.style.height = `${MIN_CHART_HEIGHT}px`;
   }
 }
 
@@ -1053,7 +1064,12 @@ function resetChartSettings() {
   syncQuickEditorFromControls();
 
   if (defaultChartSize) {
-    setChartDimensions(defaultChartSize.width, defaultChartSize.height);
+    setChartDimensions(
+      defaultChartSize.width,
+      defaultChartSize.height,
+      defaultChartSize.left,
+      defaultChartSize.top
+    );
     scheduleChartResize();
   }
 
@@ -1607,28 +1623,31 @@ function resolveAxisWeight(value) {
 }
 
 function computeAxisSpacing(labelSize, nameSize, isYAxis) {
-  const margin = Math.max(10, Math.round(labelSize * 0.8));
+  const margin = Math.max(12, Math.round(labelSize * 0.95));
   if (isYAxis) {
     return {
       margin,
-      nameGap: Math.max(90, Math.round(labelSize * 2.4 + nameSize + 36)),
+      nameGap: Math.max(
+        120,
+        Math.round(labelSize * 3.2 + nameSize * 1.6 + 48)
+      ),
     };
   }
   return {
     margin,
-    nameGap: Math.max(36, Math.round(labelSize * 1.8 + nameSize + 18)),
+    nameGap: Math.max(44, Math.round(labelSize * 2 + nameSize + 22)),
   };
 }
 
 function computeAxisInsets(leftSpacing, rightSpacing, showRightAxis) {
   const left = Math.max(
-    80,
-    Math.round(leftSpacing.nameGap + leftSpacing.margin + 20)
+    96,
+    Math.round(leftSpacing.nameGap + leftSpacing.margin + 32)
   );
   const right = showRightAxis
     ? Math.max(
-        80,
-        Math.round(rightSpacing.nameGap + rightSpacing.margin + 20)
+        96,
+        Math.round(rightSpacing.nameGap + rightSpacing.margin + 32)
       )
     : 40;
   return { left, right };
@@ -2246,6 +2265,7 @@ function buildStandardOption() {
       axisLabel: {
         ...yAxisStyles.labelTextStyle,
         margin: yAxisSpacing.margin,
+        hideOverlap: true,
         formatter: (value) =>
           formatValue(value, leftAxisFormatting.format, {
             stackedPercent,
@@ -2278,6 +2298,7 @@ function buildStandardOption() {
       axisLabel: {
         ...yAxisRightStyles.labelTextStyle,
         margin: yAxisRightSpacing.margin,
+        hideOverlap: true,
         show: usesRightAxis,
         formatter: (value) =>
           formatValue(value, rightAxisFormatting.format, {
@@ -2452,6 +2473,7 @@ function buildHistogramOption() {
       axisLabel: {
         ...yAxisStyles.labelTextStyle,
         margin: yAxisSpacing.margin,
+        hideOverlap: true,
       },
       axisTick: { lineStyle: { color: axisColor } },
       splitLine: {
@@ -2565,6 +2587,7 @@ function buildBoxplotOption() {
       axisLabel: {
         ...yAxisStyles.labelTextStyle,
         margin: yAxisSpacing.margin,
+        hideOverlap: true,
       },
       axisTick: { lineStyle: { color: axisColor } },
       splitLine: {
@@ -2699,6 +2722,7 @@ function buildWaterfallOption() {
       axisLabel: {
         ...yAxisStyles.labelTextStyle,
         margin: yAxisSpacing.margin,
+        hideOverlap: true,
       },
       axisTick: { lineStyle: { color: axisColor } },
       splitLine: {
@@ -3812,6 +3836,8 @@ const resizeState = {
   startY: 0,
   startWidth: 0,
   startHeight: 0,
+  startLeft: 0,
+  startTop: 0,
 };
 
 function handleResizeStart(event) {
@@ -3821,12 +3847,17 @@ function handleResizeStart(event) {
   }
   event.preventDefault();
   const rect = elements.chartShell.getBoundingClientRect();
+  const style = window.getComputedStyle(elements.chartShell);
+  const startLeft = parseFloat(style.left);
+  const startTop = parseFloat(style.top);
   resizeState.active = true;
   resizeState.handle = handle;
   resizeState.startX = event.clientX;
   resizeState.startY = event.clientY;
   resizeState.startWidth = rect.width;
   resizeState.startHeight = rect.height;
+  resizeState.startLeft = Number.isFinite(startLeft) ? startLeft : 0;
+  resizeState.startTop = Number.isFinite(startTop) ? startTop : 0;
   document.body.style.userSelect = "none";
   document.addEventListener("mousemove", handleResizeMove);
   document.addEventListener("mouseup", handleResizeEnd);
@@ -3840,21 +3871,36 @@ function handleResizeMove(event) {
   const dy = event.clientY - resizeState.startY;
   let nextWidth = resizeState.startWidth;
   let nextHeight = resizeState.startHeight;
+  let nextLeft = resizeState.startLeft;
+  let nextTop = resizeState.startTop;
 
   if (resizeState.handle.includes("right")) {
     nextWidth = resizeState.startWidth + dx;
   }
   if (resizeState.handle.includes("left")) {
     nextWidth = resizeState.startWidth - dx;
+    nextLeft = resizeState.startLeft + dx;
   }
   if (resizeState.handle.includes("bottom")) {
     nextHeight = resizeState.startHeight + dy;
   }
   if (resizeState.handle.includes("top")) {
     nextHeight = resizeState.startHeight - dy;
+    nextTop = resizeState.startTop + dy;
   }
 
-  setChartDimensions(nextWidth, nextHeight);
+  const clampedWidth = Math.max(nextWidth, MIN_CHART_WIDTH);
+  const clampedHeight = Math.max(nextHeight, MIN_CHART_HEIGHT);
+  if (resizeState.handle.includes("left")) {
+    const widthDelta = resizeState.startWidth - clampedWidth;
+    nextLeft = resizeState.startLeft + widthDelta;
+  }
+  if (resizeState.handle.includes("top")) {
+    const heightDelta = resizeState.startHeight - clampedHeight;
+    nextTop = resizeState.startTop + heightDelta;
+  }
+
+  setChartDimensions(clampedWidth, clampedHeight, nextLeft, nextTop);
   scheduleChartResize();
 }
 

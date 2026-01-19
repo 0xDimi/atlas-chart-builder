@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=86ee800" />
+    <link rel="stylesheet" href="styles.css?v=preview-fixes" />
   </head>
   <body>
     <div class="backdrop"></div>
@@ -50,25 +50,33 @@
               </button>
             </div>
           </div>
-          <div id="chartShell" class="chart-shell">
-            <div id="chart"></div>
-            <div class="resize-handle handle-top" data-handle="top"></div>
-            <div class="resize-handle handle-bottom" data-handle="bottom"></div>
-            <div class="resize-handle handle-left" data-handle="left"></div>
-            <div class="resize-handle handle-right" data-handle="right"></div>
-            <div class="resize-handle handle-top-left" data-handle="top-left"></div>
-            <div
-              class="resize-handle handle-top-right"
-              data-handle="top-right"
-            ></div>
-            <div
-              class="resize-handle handle-bottom-left"
-              data-handle="bottom-left"
-            ></div>
-            <div
-              class="resize-handle handle-bottom-right"
-              data-handle="bottom-right"
-            ></div>
+          <div class="chart-stage">
+            <div id="chartShell" class="chart-shell">
+              <div id="chart"></div>
+              <div class="resize-handle handle-top" data-handle="top"></div>
+              <div
+                class="resize-handle handle-bottom"
+                data-handle="bottom"
+              ></div>
+              <div class="resize-handle handle-left" data-handle="left"></div>
+              <div class="resize-handle handle-right" data-handle="right"></div>
+              <div
+                class="resize-handle handle-top-left"
+                data-handle="top-left"
+              ></div>
+              <div
+                class="resize-handle handle-top-right"
+                data-handle="top-right"
+              ></div>
+              <div
+                class="resize-handle handle-bottom-left"
+                data-handle="bottom-left"
+              ></div>
+              <div
+                class="resize-handle handle-bottom-right"
+                data-handle="bottom-right"
+              ></div>
+            </div>
           </div>
           <div id="quickTextEditor" class="quick-editor is-hidden" role="dialog" aria-label="Axis text editor">
             <div class="quick-header">
@@ -1086,6 +1094,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script src="app.js?v=86ee800"></script>
+    <script src="app.js?v=preview-fixes"></script>
   </body>
 </html>

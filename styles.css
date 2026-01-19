@@ -544,18 +544,32 @@ button.ghost:hover {
   z-index: 1;
 }
 
+.chart-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: clamp(420px, 70vh, 820px);
+  padding: 18px;
+  border-radius: calc(var(--radius) - 2px);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px dashed rgba(24, 28, 31, 0.12);
+  overflow: auto;
+}
+
 .chart-shell {
   position: relative;
+  top: 0;
+  left: 0;
   width: 100%;
   height: clamp(380px, 65vh, 720px);
   min-height: 260px;
   min-width: 320px;
-  max-width: 100%;
-  align-self: flex-start;
+  max-width: none;
+  max-height: none;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.75);
-  overflow: hidden;
+  overflow: visible;
+  flex: 0 0 auto;
 }
 
 .quick-editor {
@@ -605,10 +619,20 @@ button.ghost:hover {
   border: none;
 }
 
+.chart-card:fullscreen .chart-stage {
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: hidden;
+}
+
 .chart-card:fullscreen .chart-shell {
   width: 100% !important;
-  height: auto !important;
+  height: 100% !important;
   min-height: 0;
+  min-width: 0;
+  left: 0 !important;
+  top: 0 !important;
   flex: 1 1 auto;
   align-self: stretch;
 }
