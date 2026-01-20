@@ -304,6 +304,7 @@ const elements = {
   dataStatus: document.getElementById("dataStatus"),
   dataPreview: document.getElementById("dataPreview"),
   apiCard: document.getElementById("apiCard"),
+  apiBaseUrl: document.getElementById("apiBaseUrl"),
   apiProvider: document.getElementById("apiProvider"),
   apiEndpointLabel: document.getElementById("apiEndpointLabel"),
   apiEndpoint: document.getElementById("apiEndpoint"),
@@ -485,18 +486,27 @@ const state = {
   currentProjectId: null,
   datasets: [],
   activeDatasetId: null,
+  apiBaseUrl: "",
 };
 
 const API_LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
-const apiEnabled =
+const API_BASE_URL_KEY = "atlasChartBuilderApiBaseUrl";
+const isLocalHost =
   typeof window !== "undefined" &&
   API_LOCAL_HOSTS.has(window.location.hostname);
+const apiEnabled = typeof window !== "undefined";
 const DEFILLAMA_SDK_PROVIDER = "defillama-sdk";
 const API_PROVIDER_LABELS = {
   defillama: "DefiLlama",
   "defillama-sdk": "DefiLlama (SDK)",
   tokenterminal: "Token Terminal",
 };
+
+if (apiEnabled) {
+  const storedBaseUrl = localStorage.getItem(API_BASE_URL_KEY) || "";
+  const defaultBaseUrl = isLocalHost ? window.location.origin : "";
+  state.apiBaseUrl = normalizeApiBaseUrl(storedBaseUrl || defaultBaseUrl);
+}
 
 let chart;
 let currentRows = [];
@@ -571,6 +581,80 @@ function updateApiStatus(message, isError) {
   elements.apiStatus.style.color = isError ? "#b3412f" : "#0f6b63";
 }
 
+function normalizeApiBaseUrl(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  const needsProtocol = !/^(https?:)?\/\//i.test(trimmed);
+  const isLocal =
+    /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(trimmed);
+  const withProtocol = needsProtocol
+    ? `${isLocal ? "http" : "https"}://${trimmed}`
+    : trimmed;
+  try {
+    const parsed = new URL(withProtocol);
+    return parsed.origin;
+  } catch (error) {
+    return "";
+  }
+}
+
+function getApiBaseUrl() {
+  return state.apiBaseUrl;
+}
+
+function setApiBaseUrl(value) {
+  const normalized = normalizeApiBaseUrl(value);
+  if (!normalized && value && value.trim()) {
+    updateApiStatus("Invalid API host URL.", true);
+  }
+  state.apiBaseUrl = normalized;
+  if (apiEnabled) {
+    if (state.apiBaseUrl) {
+      localStorage.setItem(API_BASE_URL_KEY, state.apiBaseUrl);
+    } else {
+      localStorage.removeItem(API_BASE_URL_KEY);
+    }
+  }
+  syncApiBaseUrlInput();
+  syncApiControls();
+  updateApiHint(elements.apiProvider ? elements.apiProvider.value : "");
+}
+
+function syncApiBaseUrlInput() {
+  if (!elements.apiBaseUrl) {
+    return;
+  }
+  elements.apiBaseUrl.value = state.apiBaseUrl;
+}
+
+function updateApiHint(provider) {
+  if (!elements.apiHint) {
+    return;
+  }
+  const usingSdk = provider === DEFILLAMA_SDK_PROVIDER;
+  let hint = "";
+  if (state.apiBaseUrl) {
+    hint = `Using ${state.apiBaseUrl} for API requests.`;
+  } else if (isLocalHost) {
+    hint = "Local-only: requires the proxy server and API keys.";
+  } else {
+    hint = "Set your hosted API URL to enable connectors on GitHub Pages.";
+  }
+  if (usingSdk) {
+    hint = `${hint} SDK methods may require a Pro key.`;
+  }
+  elements.apiHint.textContent = hint;
+}
+
+function syncApiControls() {
+  if (!elements.apiFetch) {
+    return;
+  }
+  elements.apiFetch.disabled = apiFetchInFlight || !state.apiBaseUrl;
+}
+
 function getApiProviderLabel(provider) {
   return API_PROVIDER_LABELS[provider] || "API";
 }
@@ -595,31 +679,21 @@ function syncApiProviderUI() {
   if (elements.apiSdkArgsField) {
     elements.apiSdkArgsField.classList.toggle("is-hidden", !usingSdk);
   }
-  if (elements.apiHint && apiEnabled) {
-    elements.apiHint.textContent = usingSdk
-      ? "Local-only: use SDK method and args; Pro endpoints require an API key."
-      : "Local-only: requires the proxy server and API keys.";
-  }
+  updateApiHint(provider);
 }
 
 function setApiAvailability() {
   if (!elements.apiCard) {
     return;
   }
-  if (apiEnabled) {
-    syncApiProviderUI();
+  if (!apiEnabled) {
+    elements.apiCard.classList.add("is-hidden");
     return;
   }
-  elements.apiCard.classList.add("is-hidden");
-  elements.apiCard
-    .querySelectorAll("input, select, button")
-    .forEach((input) => {
-      input.disabled = true;
-    });
-  if (elements.apiHint) {
-    elements.apiHint.textContent =
-      "API connectors are disabled on public hosts.";
-  }
+  elements.apiCard.classList.remove("is-hidden");
+  syncApiBaseUrlInput();
+  syncApiProviderUI();
+  syncApiControls();
 }
 
 function updateProjectStatus(message, isError) {
@@ -1537,6 +1611,11 @@ async function fetchApiDataset() {
     updateApiStatus("API connector UI missing.", true);
     return;
   }
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    updateApiStatus("Set an API host to enable connectors.", true);
+    return;
+  }
   const endpoint = elements.apiEndpoint.value.trim();
   if (!endpoint) {
     updateApiStatus(
@@ -1558,13 +1637,11 @@ async function fetchApiDataset() {
   const sdkArgs = elements.apiSdkArgs ? elements.apiSdkArgs.value.trim() : "";
 
   apiFetchInFlight = true;
-  if (elements.apiFetch) {
-    elements.apiFetch.disabled = true;
-  }
+  syncApiControls();
   updateApiStatus("Fetching dataset...", false);
 
   try {
-    const url = new URL(`/api/${provider}`, window.location.origin);
+    const url = new URL(`/api/${provider}`, baseUrl);
     if (provider === DEFILLAMA_SDK_PROVIDER) {
       url.searchParams.set("method", endpoint);
       if (sdkArgs) {
@@ -1616,9 +1693,7 @@ async function fetchApiDataset() {
     updateApiStatus(message, true);
   } finally {
     apiFetchInFlight = false;
-    if (elements.apiFetch) {
-      elements.apiFetch.disabled = false;
-    }
+    syncApiControls();
   }
 }
 
@@ -4154,6 +4229,20 @@ function attachListeners() {
   if (elements.apiFetch && apiEnabled) {
     elements.apiFetch.addEventListener("click", () => {
       fetchApiDataset();
+    });
+  }
+
+  if (elements.apiBaseUrl && apiEnabled) {
+    const handleBaseUrlUpdate = () => {
+      setApiBaseUrl(elements.apiBaseUrl.value);
+      updateApiStatus("", false);
+    };
+    elements.apiBaseUrl.addEventListener("change", handleBaseUrlUpdate);
+    elements.apiBaseUrl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleBaseUrlUpdate();
+      }
     });
   }
 

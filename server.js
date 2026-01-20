@@ -10,7 +10,19 @@ try {
 }
 
 const ROOT_DIR = __dirname;
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://0.0.0.0:5173",
+  "https://0xdimi.github.io",
+];
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(","))
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 function getHostName(hostHeader) {
   if (!hostHeader) {
@@ -28,6 +40,31 @@ function getHostName(hostHeader) {
 
 function isLocalHost(hostHeader) {
   return LOCAL_HOSTS.has(getHostName(hostHeader));
+}
+
+function isAllowedOrigin(origin) {
+  return origin && allowedOrigins.has(origin);
+}
+
+function applyCors(req, res) {
+  const origin = req.headers.origin;
+  if (!isAllowedOrigin(origin)) {
+    return;
+  }
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, x-api-key"
+  );
+}
+
+function isRequestAllowed(req) {
+  if (isLocalHost(req.headers.host)) {
+    return true;
+  }
+  return isAllowedOrigin(req.headers.origin);
 }
 
 function loadEnvFile(filepath) {
@@ -291,9 +328,24 @@ function serveStatic(req, res, url) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (url.pathname.startsWith("/api/")) {
-    if (!isLocalHost(req.headers.host)) {
+    if (!isRequestAllowed(req)) {
       sendJson(res, 403, {
-        error: "API connectors are disabled on public hosts.",
+        error: "Origin not allowed.",
+      });
+      return;
+    }
+    if (req.method === "OPTIONS") {
+      applyCors(req, res);
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+    applyCors(req, res);
+    if (url.pathname === "/api/health") {
+      sendJson(res, 200, {
+        status: "ok",
+        providers: Object.keys(providers),
+        defillamaSdk: Boolean(DefiLlama),
       });
       return;
     }

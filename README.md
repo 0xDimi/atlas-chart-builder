@@ -2,9 +2,10 @@
 
 CSV chart builder for local or public use. Upload CSV files from DeFiLlama, Token Terminal, Artemis, Dune, CoinGecko, or any other source and export polished charts with transparent backgrounds.
 
-## Public hosting (static, no APIs)
+## Public hosting (static front-end)
 
-The app is static and can be hosted from the repo root. API connectors are disabled on public hosts.
+The UI can be hosted from the repo root. API connectors require a separate
+hosted proxy server (see below) with your API keys.
 
 GitHub Pages:
 1. Push the repo to GitHub.
@@ -38,6 +39,13 @@ node server.js
 Add API keys in `.env` before starting the server.
 
 Open `http://localhost:5173` in your browser.
+
+## API connectors on GitHub Pages
+
+1. Deploy `server.js` to a Node host (Render/Fly/Railway/Vercel server).
+2. Set `DEFILLAMA_API_KEY` and `TOKEN_TERMINAL_API_KEY` in that host.
+3. Add your Pages URL to `ALLOWED_ORIGINS` (comma-separated).
+4. In the UI, set the "API host" field to the hosted server URL.
 
 DefiLlama SDK connector:
 - Provider: "DefiLlama (SDK)"
