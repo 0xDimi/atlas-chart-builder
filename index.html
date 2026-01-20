@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=ux-polish" />
+    <link rel="stylesheet" href="styles.css?v=recommendation" />
   </head>
   <body>
     <div class="backdrop"></div>
@@ -88,23 +88,6 @@
                 class="resize-handle handle-bottom-right"
                 data-handle="bottom-right"
               ></div>
-            </div>
-            <div id="emptyState" class="empty-state is-hidden">
-              <div class="empty-card">
-                <p class="empty-title">Start a chart in seconds</p>
-                <p class="empty-subtitle">
-                  Upload a CSV, paste data, or load a sample to preview.
-                </p>
-                <div class="empty-actions">
-                  <button id="emptyUpload" type="button">Upload CSV</button>
-                  <button id="emptyPaste" class="secondary" type="button">
-                    Paste CSV
-                  </button>
-                  <button id="emptySample" class="ghost" type="button">
-                    Load sample
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
           <div id="quickTextEditor" class="quick-editor is-hidden" role="dialog" aria-label="Axis text editor">
@@ -1121,25 +1104,8 @@
       </main>
     </div>
 
-    <div id="commandPalette" class="command-palette is-hidden" role="dialog" aria-modal="true" aria-label="Command palette">
-      <div class="command-backdrop" data-command-close></div>
-      <div class="command-panel">
-        <div class="command-input">
-          <input
-            id="commandInput"
-            type="text"
-            placeholder="Type a command…"
-            autocomplete="off"
-          />
-          <span class="command-hint">Ctrl/Cmd + K</span>
-        </div>
-        <ul id="commandList" class="command-list"></ul>
-        <div class="command-footer">Use ↑↓ to navigate, Enter to run.</div>
-      </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script src="app.js?v=ux-polish"></script>
+    <script src="app.js?v=recommendation"></script>
   </body>
 </html>
