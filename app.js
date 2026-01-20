@@ -408,14 +408,25 @@ const elements = {
   clearAdvanced: document.getElementById("clearAdvanced"),
   advancedStatus: document.getElementById("advancedStatus"),
   seriesCount: document.getElementById("seriesCount"),
+  chartRecommendation: document.getElementById("chartRecommendation"),
+  recommendedType: document.getElementById("recommendedType"),
+  recommendationReason: document.getElementById("recommendationReason"),
+  applyRecommendation: document.getElementById("applyRecommendation"),
   seriesOverrides: document.getElementById("seriesOverrides"),
   chartCard: document.getElementById("chartCard"),
   chartShell: document.getElementById("chartShell"),
+  emptyState: document.getElementById("emptyState"),
+  emptyUpload: document.getElementById("emptyUpload"),
+  emptyPaste: document.getElementById("emptyPaste"),
+  emptySample: document.getElementById("emptySample"),
   controlPanel: document.getElementById("controlPanel"),
   toggleLayout: document.getElementById("toggleLayout"),
   toggleFullscreen: document.getElementById("toggleFullscreen"),
   copyPngQuick: document.getElementById("copyPngQuick"),
   downloadPngQuick: document.getElementById("downloadPngQuick"),
+  commandPalette: document.getElementById("commandPalette"),
+  commandInput: document.getElementById("commandInput"),
+  commandList: document.getElementById("commandList"),
   quickTextEditor: document.getElementById("quickTextEditor"),
   quickAxisTarget: document.getElementById("quickAxisTarget"),
   quickAxisLabelSize: document.getElementById("quickAxisLabelSize"),
@@ -589,6 +600,373 @@ function updateAdvancedStatus(message, isError) {
 
 function updateSeriesCount(count) {
   elements.seriesCount.textContent = `${count} series`;
+}
+
+function setEmptyStateVisible(visible) {
+  if (!elements.emptyState) {
+    return;
+  }
+  elements.emptyState.classList.toggle("is-hidden", !visible);
+}
+
+function isLikelyDate(value) {
+  if (!value) {
+    return false;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return true;
+  }
+  const stringValue = String(value).trim();
+  if (!stringValue) {
+    return false;
+  }
+  if (!/[\\-\\/T]/.test(stringValue)) {
+    return false;
+  }
+  return !Number.isNaN(Date.parse(stringValue));
+}
+
+function inferColumnType(values) {
+  let total = 0;
+  let dateCount = 0;
+  let numericCount = 0;
+
+  values.forEach((value) => {
+    if (value === null || value === undefined || value === "") {
+      return;
+    }
+    total += 1;
+    if (isLikelyDate(value)) {
+      dateCount += 1;
+      return;
+    }
+    if (parseNumber(value) !== null) {
+      numericCount += 1;
+    }
+  });
+
+  if (!total) {
+    return "categorical";
+  }
+  if (dateCount / total >= 0.6) {
+    return "time";
+  }
+  if (numericCount / total >= 0.6) {
+    return "numeric";
+  }
+  return "categorical";
+}
+
+function countNumericColumns(columns, rows) {
+  if (!columns.length || !rows.length) {
+    return 0;
+  }
+  const sample = rows.slice(0, 20);
+  return columns.reduce((count, col) => {
+    let numericHits = 0;
+    let total = 0;
+    sample.forEach((row) => {
+      const value = row[col];
+      if (value === null || value === undefined || value === "") {
+        return;
+      }
+      total += 1;
+      if (parseNumber(value) !== null) {
+        numericHits += 1;
+      }
+    });
+    if (total && numericHits / total >= 0.6) {
+      return count + 1;
+    }
+    return count;
+  }, 0);
+}
+
+function getRecommendedChartType() {
+  if (!currentRows.length || !currentColumns.length) {
+    return null;
+  }
+  const xColumn = elements.xColumn.value || currentColumns[0];
+  const xValues = currentRows.slice(0, 20).map((row) => row[xColumn]);
+  const xType = inferColumnType(xValues);
+  const yColumns = getSelectedYColumns();
+  const numericYCount = countNumericColumns(yColumns, currentRows);
+
+  if (xType === "categorical") {
+    return {
+      value: "bar",
+      label: "Bar",
+      reason: "Categorical x-axis",
+    };
+  }
+  if (xType === "numeric" && numericYCount <= 1) {
+    return {
+      value: "scatter",
+      label: "Scatter",
+      reason: "Numeric x-axis",
+    };
+  }
+  if (xType === "time") {
+    return {
+      value: "line",
+      label: "Line",
+      reason: "Time series",
+    };
+  }
+  return {
+    value: "line",
+    label: "Line",
+    reason: "Continuous trend",
+  };
+}
+
+function updateRecommendation() {
+  if (!elements.chartRecommendation || !elements.recommendedType) {
+    return;
+  }
+  const recommendation = getRecommendedChartType();
+  if (!recommendation) {
+    elements.chartRecommendation.classList.add("is-hidden");
+    return;
+  }
+
+  elements.recommendedType.textContent = recommendation.label;
+  if (elements.recommendationReason) {
+    elements.recommendationReason.textContent = recommendation.reason;
+  }
+  elements.chartRecommendation.dataset.type = recommendation.value;
+  if (elements.applyRecommendation) {
+    const isCurrent = elements.chartType.value === recommendation.value;
+    elements.applyRecommendation.disabled = isCurrent;
+    elements.applyRecommendation.textContent = isCurrent ? "Applied" : "Apply";
+  }
+  elements.chartRecommendation.classList.remove("is-hidden");
+}
+
+const commandState = {
+  open: false,
+  items: [],
+  index: 0,
+};
+
+function getCommandItems() {
+  const viewLabel =
+    elements.controlPanel?.dataset.view === "stacked"
+      ? "Tabbed view"
+      : "Show all";
+  return [
+    {
+      id: "upload-csv",
+      label: "Upload CSV",
+      keywords: "import file",
+      action: () => elements.csvFile?.click(),
+    },
+    {
+      id: "paste-csv",
+      label: "Paste CSV",
+      keywords: "clipboard data",
+      action: () => {
+        setActiveTab("data");
+        elements.csvPaste?.focus();
+        elements.csvPaste?.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
+    },
+    {
+      id: "load-sample",
+      label: "Load sample dataset",
+      keywords: "demo example",
+      action: () => elements.loadSample?.click(),
+    },
+    {
+      id: "clear-active",
+      label: "Clear active dataset",
+      keywords: "remove delete",
+      action: () => elements.clearData?.click(),
+    },
+    {
+      id: "clear-all",
+      label: "Clear all datasets",
+      keywords: "reset wipe",
+      action: () => elements.clearAllData?.click(),
+    },
+    {
+      id: "copy-png",
+      label: "Copy PNG",
+      keywords: "export image",
+      action: () => copyChart(),
+    },
+    {
+      id: "download-png",
+      label: "Download PNG",
+      keywords: "export image",
+      action: () => downloadChart(),
+    },
+    {
+      id: "toggle-fullscreen",
+      label: "Toggle fullscreen",
+      keywords: "preview",
+      action: () => elements.toggleFullscreen?.click(),
+    },
+    {
+      id: "toggle-layout",
+      label: viewLabel,
+      keywords: "layout view",
+      action: () => elements.toggleLayout?.click(),
+    },
+    {
+      id: "new-project",
+      label: "New project",
+      keywords: "workspace",
+      action: () => elements.newProject?.click(),
+    },
+    {
+      id: "save-project",
+      label: "Save project",
+      keywords: "workspace",
+      action: () => elements.saveProject?.click(),
+    },
+    {
+      id: "save-as-project",
+      label: "Save project as...",
+      keywords: "workspace",
+      action: () => elements.saveAsProject?.click(),
+    },
+    {
+      id: "duplicate-project",
+      label: "Duplicate project",
+      keywords: "workspace",
+      action: () => elements.duplicateProject?.click(),
+    },
+    {
+      id: "delete-project",
+      label: "Delete project",
+      keywords: "workspace",
+      action: () => elements.deleteProject?.click(),
+    },
+    {
+      id: "open-data-tab",
+      label: "Open data tab",
+      keywords: "section",
+      action: () => setActiveTab("data"),
+    },
+    {
+      id: "open-series-tab",
+      label: "Open series tab",
+      keywords: "section",
+      action: () => setActiveTab("series"),
+    },
+    {
+      id: "open-axes-tab",
+      label: "Open axes tab",
+      keywords: "section",
+      action: () => setActiveTab("axes"),
+    },
+    {
+      id: "open-style-tab",
+      label: "Open style tab",
+      keywords: "section",
+      action: () => setActiveTab("style"),
+    },
+    {
+      id: "open-advanced-tab",
+      label: "Open advanced tab",
+      keywords: "section",
+      action: () => setActiveTab("advanced"),
+    },
+  ];
+}
+
+function renderCommandList(query = "") {
+  if (!elements.commandList) {
+    return;
+  }
+  const normalized = query.trim().toLowerCase();
+  const commands = getCommandItems();
+  const filtered = commands.filter((command) => {
+    if (!normalized) return true;
+    return (
+      command.label.toLowerCase().includes(normalized) ||
+      (command.keywords || "").toLowerCase().includes(normalized)
+    );
+  });
+
+  commandState.items = filtered;
+  commandState.index = 0;
+  elements.commandList.innerHTML = "";
+
+  if (!filtered.length) {
+    const empty = document.createElement("li");
+    empty.className = "command-item";
+    empty.textContent = "No commands found.";
+    elements.commandList.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((command, index) => {
+    const item = document.createElement("li");
+    item.className = "command-item";
+    if (index === 0) {
+      item.classList.add("is-active");
+    }
+    item.dataset.index = String(index);
+    const label = document.createElement("span");
+    label.textContent = command.label;
+    const meta = document.createElement("span");
+    meta.className = "command-meta";
+    meta.textContent = command.keywords || "";
+    item.appendChild(label);
+    item.appendChild(meta);
+    item.addEventListener("click", () => {
+      runCommand(index);
+    });
+    elements.commandList.appendChild(item);
+  });
+}
+
+function updateCommandSelection(nextIndex) {
+  if (!elements.commandList || !commandState.items.length) {
+    return;
+  }
+  const clamped = Math.max(0, Math.min(nextIndex, commandState.items.length - 1));
+  const items = Array.from(elements.commandList.querySelectorAll(".command-item"));
+  items.forEach((item, index) => {
+    item.classList.toggle("is-active", index === clamped);
+  });
+  commandState.index = clamped;
+  const activeItem = items[clamped];
+  if (activeItem) {
+    activeItem.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function runCommand(index) {
+  const command = commandState.items[index];
+  if (!command) {
+    return;
+  }
+  closeCommandPalette();
+  command.action();
+}
+
+function openCommandPalette() {
+  if (!elements.commandPalette || commandState.open) {
+    return;
+  }
+  commandState.open = true;
+  elements.commandPalette.classList.remove("is-hidden");
+  renderCommandList("");
+  if (elements.commandInput) {
+    elements.commandInput.value = "";
+    elements.commandInput.focus();
+  }
+}
+
+function closeCommandPalette() {
+  if (!elements.commandPalette) {
+    return;
+  }
+  commandState.open = false;
+  elements.commandPalette.classList.add("is-hidden");
 }
 
 const tabButtons = Array.from(
@@ -2784,6 +3162,8 @@ function updateChart() {
   try {
     if (!currentRows.length || !currentColumns.length) {
       chart.clear();
+      setEmptyStateVisible(true);
+      updateRecommendation();
       chart.setOption({
         title: {
           text: "Upload a CSV to begin",
@@ -2808,8 +3188,11 @@ function updateChart() {
     }
     const option = applyAdvanced(buildOption());
     chart.setOption(option, true);
+    setEmptyStateVisible(false);
+    updateRecommendation();
   } catch (error) {
     chart.clear();
+    setEmptyStateVisible(false);
     updateProjectStatus("Chart render failed. Check console errors.", true);
     console.error(error);
   }
@@ -3997,6 +4380,19 @@ function attachListeners() {
     scheduleUpdateChart();
   });
 
+  if (elements.applyRecommendation) {
+    elements.applyRecommendation.addEventListener("click", () => {
+      const recommendation = getRecommendedChartType();
+      if (!recommendation) {
+        return;
+      }
+      elements.chartType.value = recommendation.value;
+      syncChartModeUI();
+      renderSeriesOverrides();
+      scheduleUpdateChart();
+    });
+  }
+
   elements.palette.addEventListener("change", () => {
     renderSeriesOverrides();
     scheduleUpdateChart();
@@ -4114,6 +4510,59 @@ function attachListeners() {
     downloadChart();
   });
 
+  if (elements.emptyUpload) {
+    elements.emptyUpload.addEventListener("click", () => {
+      elements.csvFile?.click();
+    });
+  }
+
+  if (elements.emptyPaste) {
+    elements.emptyPaste.addEventListener("click", () => {
+      setActiveTab("data");
+      elements.csvPaste?.focus();
+      elements.csvPaste?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
+  if (elements.emptySample) {
+    elements.emptySample.addEventListener("click", () => {
+      elements.loadSample?.click();
+    });
+  }
+
+  if (elements.commandInput) {
+    elements.commandInput.addEventListener("input", (event) => {
+      renderCommandList(event.target.value);
+    });
+    elements.commandInput.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        updateCommandSelection(commandState.index + 1);
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        updateCommandSelection(commandState.index - 1);
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runCommand(commandState.index);
+      }
+      if (event.key === "Escape") {
+        closeCommandPalette();
+      }
+    });
+  }
+
+  if (elements.commandPalette) {
+    elements.commandPalette
+      .querySelectorAll("[data-command-close]")
+      .forEach((node) => {
+        node.addEventListener("click", () => {
+          closeCommandPalette();
+        });
+      });
+  }
+
   elements.toggleFullscreen.addEventListener("click", () => {
     toggleFullscreen();
   });
@@ -4179,8 +4628,21 @@ function attachListeners() {
   });
 
   document.addEventListener("keydown", (event) => {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === "k"
+    ) {
+      event.preventDefault();
+      if (commandState.open) {
+        closeCommandPalette();
+      } else {
+        openCommandPalette();
+      }
+      return;
+    }
     if (event.key === "Escape") {
       closeQuickEditor();
+      closeCommandPalette();
       if (titlePickMode) {
         setTitlePickMode(false);
       }
