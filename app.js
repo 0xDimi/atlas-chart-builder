@@ -305,9 +305,12 @@ const elements = {
   dataPreview: document.getElementById("dataPreview"),
   apiCard: document.getElementById("apiCard"),
   apiProvider: document.getElementById("apiProvider"),
+  apiEndpointLabel: document.getElementById("apiEndpointLabel"),
   apiEndpoint: document.getElementById("apiEndpoint"),
   apiDatasetName: document.getElementById("apiDatasetName"),
   apiJsonPath: document.getElementById("apiJsonPath"),
+  apiSdkArgsField: document.getElementById("apiSdkArgsField"),
+  apiSdkArgs: document.getElementById("apiSdkArgs"),
   apiFetch: document.getElementById("apiFetch"),
   apiClear: document.getElementById("apiClear"),
   apiStatus: document.getElementById("apiStatus"),
@@ -488,6 +491,12 @@ const API_LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
 const apiEnabled =
   typeof window !== "undefined" &&
   API_LOCAL_HOSTS.has(window.location.hostname);
+const DEFILLAMA_SDK_PROVIDER = "defillama-sdk";
+const API_PROVIDER_LABELS = {
+  defillama: "DefiLlama",
+  "defillama-sdk": "DefiLlama (SDK)",
+  tokenterminal: "Token Terminal",
+};
 
 let chart;
 let currentRows = [];
@@ -562,11 +571,43 @@ function updateApiStatus(message, isError) {
   elements.apiStatus.style.color = isError ? "#b3412f" : "#0f6b63";
 }
 
+function getApiProviderLabel(provider) {
+  return API_PROVIDER_LABELS[provider] || "API";
+}
+
+function syncApiProviderUI() {
+  if (!elements.apiProvider) {
+    return;
+  }
+  const provider = elements.apiProvider.value;
+  const usingSdk = provider === DEFILLAMA_SDK_PROVIDER;
+
+  if (elements.apiEndpointLabel) {
+    elements.apiEndpointLabel.textContent = usingSdk
+      ? "SDK method"
+      : "Endpoint path or full URL";
+  }
+  if (elements.apiEndpoint) {
+    elements.apiEndpoint.placeholder = usingSdk
+      ? "tvl.getProtocol"
+      : "/protocol/ethereum or https://...";
+  }
+  if (elements.apiSdkArgsField) {
+    elements.apiSdkArgsField.classList.toggle("is-hidden", !usingSdk);
+  }
+  if (elements.apiHint && apiEnabled) {
+    elements.apiHint.textContent = usingSdk
+      ? "Local-only: use SDK method and args; Pro endpoints require an API key."
+      : "Local-only: requires the proxy server and API keys.";
+  }
+}
+
 function setApiAvailability() {
   if (!elements.apiCard) {
     return;
   }
   if (apiEnabled) {
+    syncApiProviderUI();
     return;
   }
   elements.apiCard.classList.add("is-hidden");
@@ -1336,7 +1377,7 @@ function parseCsvText(text) {
 }
 
 function createApiDatasetName(provider, endpoint) {
-  const label = provider === "tokenterminal" ? "Token Terminal" : "DefiLlama";
+  const label = getApiProviderLabel(provider);
   const trimmed = String(endpoint || "")
     .split("?")[0]
     .split("/")
@@ -1498,7 +1539,12 @@ async function fetchApiDataset() {
   }
   const endpoint = elements.apiEndpoint.value.trim();
   if (!endpoint) {
-    updateApiStatus("Enter an endpoint path or URL.", true);
+    updateApiStatus(
+      elements.apiProvider.value === DEFILLAMA_SDK_PROVIDER
+        ? "Enter an SDK method."
+        : "Enter an endpoint path or URL.",
+      true
+    );
     return;
   }
   const provider = elements.apiProvider.value;
@@ -1509,6 +1555,7 @@ async function fetchApiDataset() {
   const jsonPath = elements.apiJsonPath
     ? elements.apiJsonPath.value.trim()
     : "";
+  const sdkArgs = elements.apiSdkArgs ? elements.apiSdkArgs.value.trim() : "";
 
   apiFetchInFlight = true;
   if (elements.apiFetch) {
@@ -1518,7 +1565,14 @@ async function fetchApiDataset() {
 
   try {
     const url = new URL(`/api/${provider}`, window.location.origin);
-    url.searchParams.set("path", endpoint);
+    if (provider === DEFILLAMA_SDK_PROVIDER) {
+      url.searchParams.set("method", endpoint);
+      if (sdkArgs) {
+        url.searchParams.set("args", sdkArgs);
+      }
+    } else {
+      url.searchParams.set("path", endpoint);
+    }
     const response = await fetch(url.toString());
     const contentType = response.headers.get("content-type") || "";
     const bodyText = await response.text();
@@ -1577,6 +1631,9 @@ function clearApiForm() {
   }
   if (elements.apiJsonPath) {
     elements.apiJsonPath.value = "";
+  }
+  if (elements.apiSdkArgs) {
+    elements.apiSdkArgs.value = "";
   }
   updateApiStatus("", false);
 }
@@ -4100,6 +4157,13 @@ function attachListeners() {
     });
   }
 
+  if (elements.apiProvider && apiEnabled) {
+    elements.apiProvider.addEventListener("change", () => {
+      syncApiProviderUI();
+      updateApiStatus("", false);
+    });
+  }
+
   if (elements.apiClear && apiEnabled) {
     elements.apiClear.addEventListener("click", () => {
       clearApiForm();
@@ -4107,7 +4171,12 @@ function attachListeners() {
   }
 
   if (apiEnabled) {
-    [elements.apiEndpoint, elements.apiDatasetName, elements.apiJsonPath]
+    [
+      elements.apiEndpoint,
+      elements.apiDatasetName,
+      elements.apiJsonPath,
+      elements.apiSdkArgs,
+    ]
       .filter(Boolean)
       .forEach((input) => {
         input.addEventListener("keydown", (event) => {

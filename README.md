@@ -30,6 +30,7 @@ python3 -m http.server 5173
 Optional local API connectors:
 
 ```bash
+npm install
 cp .env.example .env
 node server.js
 ```
@@ -37,6 +38,12 @@ node server.js
 Add API keys in `.env` before starting the server.
 
 Open `http://localhost:5173` in your browser.
+
+DefiLlama SDK connector:
+- Provider: "DefiLlama (SDK)"
+- Method: `tvl.getProtocol`
+- Args (JSON): `["aave"]`
+- JSON path (optional): `tvl` or `tvl.chart` depending on the response
 
 ## Notes
 

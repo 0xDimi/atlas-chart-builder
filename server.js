@@ -2,6 +2,12 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
+let DefiLlama;
+try {
+  ({ DefiLlama } = require("@defillama/api"));
+} catch (error) {
+  DefiLlama = null;
+}
 
 const ROOT_DIR = __dirname;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -66,6 +72,32 @@ const providers = {
     keyPrefix: process.env.TOKEN_TERMINAL_KEY_PREFIX || "Bearer",
   },
 };
+const DEFILLAMA_SDK_PROVIDER = "defillama-sdk";
+const DEFILLAMA_TIMEOUT = Number(process.env.DEFILLAMA_TIMEOUT || 30000);
+const DEFILLAMA_SDK_MODULES = new Set([
+  "tvl",
+  "prices",
+  "stablecoins",
+  "yields",
+  "volumes",
+  "fees",
+  "emissions",
+  "bridges",
+  "ecosystem",
+  "etfs",
+  "dat",
+  "account",
+]);
+const defillamaSdkClient = DefiLlama
+  ? new DefiLlama({ timeout: DEFILLAMA_TIMEOUT })
+  : null;
+const defillamaSdkProClient =
+  DefiLlama && providers.defillama.apiKey
+    ? new DefiLlama({
+        apiKey: providers.defillama.apiKey,
+        timeout: DEFILLAMA_TIMEOUT,
+      })
+    : null;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -106,6 +138,81 @@ function buildTargetUrl(baseUrl, requestedPath) {
     return `${trimmedBase}${trimmedPath}`;
   } catch (error) {
     return null;
+  }
+}
+
+function parseSdkArgs(rawArgs) {
+  if (!rawArgs) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(rawArgs);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (error) {
+    return [rawArgs];
+  }
+}
+
+function isSafeSdkSegment(segment) {
+  return /^[a-zA-Z][a-zA-Z0-9_]*$/.test(segment);
+}
+
+function getDefiLlamaClient() {
+  return defillamaSdkProClient || defillamaSdkClient;
+}
+
+async function handleDefiLlamaSdkRequest(req, res, url) {
+  if (req.method !== "GET") {
+    sendJson(res, 405, { error: "Method not allowed." });
+    return;
+  }
+  if (!DefiLlama) {
+    sendJson(res, 503, {
+      error: "DefiLlama SDK not installed. Run npm install.",
+    });
+    return;
+  }
+  const method = url.searchParams.get("method");
+  if (!method) {
+    sendJson(res, 400, { error: "Missing method parameter." });
+    return;
+  }
+  const [moduleName, methodName, extra] = method.split(".");
+  if (extra || !moduleName || !methodName) {
+    sendJson(res, 400, { error: "Method must be module.method." });
+    return;
+  }
+  if (
+    !DEFILLAMA_SDK_MODULES.has(moduleName) ||
+    !isSafeSdkSegment(methodName)
+  ) {
+    sendJson(res, 400, { error: "Unsupported SDK method." });
+    return;
+  }
+  const client = getDefiLlamaClient();
+  if (!client || !client[moduleName]) {
+    sendJson(res, 500, { error: "DefiLlama SDK unavailable." });
+    return;
+  }
+  const targetModule = client[moduleName];
+  const targetMethod = targetModule[methodName];
+  if (typeof targetMethod !== "function") {
+    sendJson(res, 400, { error: "Unknown SDK method." });
+    return;
+  }
+  const args = parseSdkArgs(url.searchParams.get("args") || "");
+
+  try {
+    const result = await targetMethod.apply(targetModule, args);
+    sendJson(res, 200, result);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "DefiLlama SDK request failed.";
+    const statusCode =
+      error && typeof error === "object" && typeof error.statusCode === "number"
+        ? error.statusCode
+        : 502;
+    sendJson(res, statusCode, { error: message });
   }
 }
 
@@ -191,6 +298,10 @@ const server = http.createServer((req, res) => {
       return;
     }
     const providerKey = url.pathname.replace("/api/", "");
+    if (providerKey === DEFILLAMA_SDK_PROVIDER) {
+      handleDefiLlamaSdkRequest(req, res, url);
+      return;
+    }
     handleApiRequest(req, res, providerKey, url);
     return;
   }

@@ -304,6 +304,7 @@
                     <label for="apiProvider">Provider</label>
                     <select id="apiProvider">
                       <option value="defillama">DefiLlama</option>
+                      <option value="defillama-sdk">DefiLlama (SDK)</option>
                       <option value="tokenterminal">Token Terminal</option>
                     </select>
                   </div>
@@ -317,11 +318,21 @@
                   </div>
                 </div>
                 <div class="field">
-                  <label for="apiEndpoint">Endpoint path or full URL</label>
+                  <label for="apiEndpoint" id="apiEndpointLabel">
+                    Endpoint path or full URL
+                  </label>
                   <input
                     id="apiEndpoint"
                     type="text"
                     placeholder="/protocol/ethereum or https://..."
+                  />
+                </div>
+                <div class="field is-hidden" id="apiSdkArgsField">
+                  <label for="apiSdkArgs">SDK args (JSON or plain text)</label>
+                  <input
+                    id="apiSdkArgs"
+                    type="text"
+                    placeholder='["aave"] or {"chain":"Ethereum"}'
                   />
                 </div>
                 <div class="field">
@@ -341,7 +352,8 @@
                   </button>
                 </div>
                 <p class="hint" id="apiHint">
-                  Local-only: requires the proxy server and API keys.
+                  Local-only: requires the proxy server and API keys for premium
+                  data.
                 </p>
               </section>
 
