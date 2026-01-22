@@ -519,6 +519,7 @@ let currentRows = [];
 let currentColumns = [];
 let quickAxisTarget = "x";
 let apiFetchInFlight = false;
+let zoomSnapshot = null;
 
 const axisTargets = {
   x: {
@@ -1110,6 +1111,42 @@ function scheduleUpdateChart() {
   });
 }
 
+function extractZoomSnapshot(source) {
+  if (!source) {
+    return null;
+  }
+  const snapshot = {};
+  ["start", "end", "startValue", "endValue"].forEach((key) => {
+    if (source[key] !== undefined && source[key] !== null) {
+      snapshot[key] = source[key];
+    }
+  });
+  return Object.keys(snapshot).length ? snapshot : null;
+}
+
+function readZoomSnapshot() {
+  if (!chart) {
+    return null;
+  }
+  const option = chart.getOption();
+  const dataZoom = option?.dataZoom;
+  if (!Array.isArray(dataZoom) || !dataZoom.length) {
+    return null;
+  }
+  const source = dataZoom.find((entry) => entry.type === "inside") || dataZoom[0];
+  return extractZoomSnapshot(source);
+}
+
+function applyZoomSnapshot(option, snapshot) {
+  if (!snapshot || !option || !Array.isArray(option.dataZoom)) {
+    return;
+  }
+  option.dataZoom = option.dataZoom.map((entry) => ({
+    ...entry,
+    ...snapshot,
+  }));
+}
+
 function syncBackgroundState() {
   elements.backgroundColor.disabled = elements.transparentBg.checked;
 }
@@ -1216,6 +1253,8 @@ function attachChartEvents() {
   chart.on("click", handleChartClick);
   chart.off("legendselectchanged", handleLegendClick);
   chart.on("legendselectchanged", handleLegendClick);
+  chart.off("datazoom", handleDataZoom);
+  chart.on("datazoom", handleDataZoom);
   const zr = chart.getZr();
   zr.off("click", handleTitlePick);
   zr.on("click", handleTitlePick);
@@ -1223,6 +1262,14 @@ function attachChartEvents() {
 
 function handleLegendClick() {
   openQuickEditor(null, "Editing legend text", "legend");
+}
+
+function handleDataZoom(event) {
+  const payload = event?.batch?.[0] || event;
+  const snapshot = extractZoomSnapshot(payload);
+  if (snapshot) {
+    zoomSnapshot = snapshot;
+  }
 }
 
 const defaultControlState = new Map();
@@ -1395,6 +1442,7 @@ function setActiveDataset(datasetId) {
 
 function addDataset(name, rows, columns) {
   const dataset = createDataset(name, rows, columns);
+  zoomSnapshot = null;
   state.datasets.unshift(dataset);
   setActiveDataset(dataset.id);
 }
@@ -1402,6 +1450,7 @@ function addDataset(name, rows, columns) {
 function removeDataset(datasetId) {
   const nextDatasets = state.datasets.filter((entry) => entry.id !== datasetId);
   state.datasets = nextDatasets;
+  zoomSnapshot = null;
   if (state.activeDatasetId === datasetId) {
     const next = state.datasets[0];
     setActiveDataset(next ? next.id : null);
@@ -1415,6 +1464,7 @@ function clearAllDatasets() {
   state.activeDatasetId = null;
   currentRows = [];
   currentColumns = [];
+  zoomSnapshot = null;
   refreshColumnControls();
   renderPreview();
   renderDatasetList();
@@ -3207,6 +3257,7 @@ function applyAdvanced(option) {
 function updateChart() {
   if (!chart) return;
   try {
+    const currentZoom = zoomSnapshot || readZoomSnapshot();
     if (!currentRows.length || !currentColumns.length) {
       chart.clear();
       updateRecommendation();
@@ -3233,6 +3284,9 @@ function updateChart() {
       return;
     }
     const option = applyAdvanced(buildOption());
+    if (currentZoom) {
+      applyZoomSnapshot(option, currentZoom);
+    }
     chart.setOption(option, true);
     updateRecommendation();
   } catch (error) {
@@ -4471,6 +4525,7 @@ function attachListeners() {
       elements.dateStart.value = "";
       elements.dateEnd.value = "";
       syncDateFilterState();
+      zoomSnapshot = null;
       scheduleUpdateChart();
     });
   }
@@ -4481,6 +4536,7 @@ function attachListeners() {
       elements.xAxisType.value = "time";
     }
     syncDateFilterState();
+    zoomSnapshot = null;
     scheduleUpdateChart();
   };
 
