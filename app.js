@@ -3062,13 +3062,13 @@ function updateChart() {
           left: "center",
           top: "middle",
           textStyle: {
-            fontFamily: "Space Grotesk",
+            fontFamily: "Fraunces",
             fontSize: 18,
             fontWeight: 600,
             color: "#4a4f52",
           },
           subtextStyle: {
-            fontFamily: "DM Sans",
+            fontFamily: "Instrument Sans",
             fontSize: 12,
             color: "#6a7074",
           },
