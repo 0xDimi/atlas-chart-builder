@@ -420,6 +420,27 @@
                   <label for="xColumn">X axis column</label>
                   <select id="xColumn"></select>
                 </div>
+                <div class="field">
+                  <label>Date range (X axis)</label>
+                  <div class="date-range">
+                    <div>
+                      <label for="dateStart">Start</label>
+                      <input id="dateStart" type="date" />
+                    </div>
+                    <div>
+                      <label for="dateEnd">End</label>
+                      <input id="dateEnd" type="date" />
+                    </div>
+                    <button
+                      id="clearDateRange"
+                      class="ghost compact"
+                      type="button"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <p class="hint">Changing dates switches X axis type to Time.</p>
+                </div>
                 <div class="field" id="yColumnsField">
                   <label>Y series columns</label>
                   <div id="yColumns" class="checkbox-grid"></div>

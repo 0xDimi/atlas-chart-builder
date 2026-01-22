@@ -332,6 +332,9 @@ const elements = {
   applyTemplate: document.getElementById("applyTemplate"),
   projectStatus: document.getElementById("projectStatus"),
   xColumn: document.getElementById("xColumn"),
+  dateStart: document.getElementById("dateStart"),
+  dateEnd: document.getElementById("dateEnd"),
+  clearDateRange: document.getElementById("clearDateRange"),
   yColumns: document.getElementById("yColumns"),
   yColumnsField: document.getElementById("yColumnsField"),
   chartType: document.getElementById("chartType"),
@@ -1108,6 +1111,17 @@ function syncBackgroundState() {
   elements.backgroundColor.disabled = elements.transparentBg.checked;
 }
 
+function syncDateFilterState() {
+  if (!elements.dateStart || !elements.dateEnd) {
+    return;
+  }
+  elements.dateStart.disabled = false;
+  elements.dateEnd.disabled = false;
+  if (elements.clearDateRange) {
+    elements.clearDateRange.disabled = false;
+  }
+}
+
 function syncChartModeUI() {
   const type = elements.chartType.value;
   elements.comboDefaults.classList.toggle("is-hidden", type !== "combo");
@@ -1276,6 +1290,8 @@ function captureDefaultControlState() {
     elements.waterfallMode,
     elements.waterfallPositive,
     elements.waterfallNegative,
+    elements.dateStart,
+    elements.dateEnd,
     elements.exportName,
     elements.exportScale,
     elements.advancedJson
@@ -1308,6 +1324,7 @@ function resetChartSettings() {
   refreshColumnControls();
   syncBackgroundState();
   syncChartModeUI();
+  syncDateFilterState();
   renderSeriesOverrides();
   renderAnnotations();
   if (elements.renderer.value !== previousRenderer) {
@@ -2020,9 +2037,75 @@ function parseAnnotationX(value, axisType) {
   return value;
 }
 
+function parseDateValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+  if (/^\d{10}$/.test(text)) {
+    return Number(text) * 1000;
+  }
+  if (/^\d{13}$/.test(text)) {
+    return Number(text);
+  }
+  const parsed = Date.parse(text);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function parseDateInputValue(value) {
+  if (!value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getFilteredRows() {
+  const xColumn = elements.xColumn.value || currentColumns[0];
+  const axisType = elements.xAxisType.value;
+  if (!xColumn || axisType !== "time") {
+    return currentRows;
+  }
+  const startRaw = elements.dateStart ? elements.dateStart.value : "";
+  const endRaw = elements.dateEnd ? elements.dateEnd.value : "";
+  let start = parseDateInputValue(startRaw);
+  let end = parseDateInputValue(endRaw);
+  if (start === null && end === null) {
+    return currentRows;
+  }
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (end !== null) {
+    end = end + dayMs - 1;
+  }
+  if (start !== null && end !== null && end < start) {
+    [start, end] = [end, start];
+  }
+  return currentRows.filter((row) => {
+    const raw = row[xColumn];
+    const parsed = parseDateValue(raw);
+    if (parsed === null) {
+      return false;
+    }
+    if (start !== null && parsed < start) {
+      return false;
+    }
+    if (end !== null && parsed > end) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function buildRowData(xColumn, yColumns, axisType, sortByX) {
   const rows = [];
-  currentRows.forEach((row) => {
+  const sourceRows = getFilteredRows();
+  sourceRows.forEach((row) => {
     const xValue = parseXValue(row[xColumn], axisType);
     if (xValue === null || xValue === undefined || xValue === "") {
       return;
@@ -2049,6 +2132,36 @@ function buildRowData(xColumn, yColumns, axisType, sortByX) {
   }
 
   return rows;
+}
+
+function buildDataZoom(axisType) {
+  if (axisType !== "time" && axisType !== "category") {
+    return [];
+  }
+  return [
+    {
+      type: "inside",
+      xAxisIndex: 0,
+      filterMode: "filter",
+      zoomOnMouseWheel: true,
+      moveOnMouseMove: true,
+      moveOnMouseWheel: false,
+    },
+    {
+      type: "slider",
+      xAxisIndex: 0,
+      height: 24,
+      bottom: 8,
+      borderColor: "transparent",
+      backgroundColor: "rgba(20, 24, 28, 0.08)",
+      fillerColor: "rgba(28, 79, 90, 0.22)",
+      handleStyle: {
+        color: "#1c4f5a",
+        borderColor: "#1c4f5a",
+      },
+      textStyle: { color: elements.textColor.value },
+    },
+  ];
 }
 
 function normalizeRowsToPercent(rows, yColumns) {
@@ -2601,6 +2714,11 @@ function buildStandardOption() {
   };
 
   const base = buildBaseOption();
+  const dataZoom = buildDataZoom(axisType);
+  const grid = gridConfig(elements.legendPosition.value, axisInsets);
+  if (dataZoom.length && typeof grid.bottom === "number") {
+    grid.bottom += 36;
+  }
   return {
     ...base,
     tooltip: {
@@ -2608,7 +2726,8 @@ function buildStandardOption() {
       formatter: tooltipFormatter,
     },
     legend: legendConfig(elements.legendPosition.value, yColumns),
-    grid: gridConfig(elements.legendPosition.value, axisInsets),
+    grid,
+    dataZoom,
     xAxis: {
       type: axisType,
       name: elements.xAxisLabel.value,
@@ -2643,7 +2762,8 @@ function formatNumberShort(value) {
 
 function buildHistogramOption() {
   const column = elements.histogramColumn.value;
-  const values = currentRows
+  const sourceRows = getFilteredRows();
+  const values = sourceRows
     .map((row) => parseNumber(row[column]))
     .filter((value) => value !== null);
 
@@ -2770,9 +2890,10 @@ function buildBoxplotOption() {
   const yColumns = getSelectedYColumns();
   const boxData = [];
   const categories = [];
+  const sourceRows = getFilteredRows();
 
   yColumns.forEach((col) => {
-    const values = currentRows
+    const values = sourceRows
       .map((row) => parseNumber(row[col]))
       .filter((value) => value !== null)
       .sort((a, b) => a - b);
@@ -3542,6 +3663,8 @@ function getSettings() {
     waterfallMode: elements.waterfallMode.value,
     waterfallPositive: elements.waterfallPositive.value,
     waterfallNegative: elements.waterfallNegative.value,
+    dateStart: elements.dateStart.value,
+    dateEnd: elements.dateEnd.value,
     advancedJson: elements.advancedJson.value,
     chartWidth: getChartDimensions().width,
     chartHeight: getChartDimensions().height,
@@ -3752,6 +3875,12 @@ function applyControlSettings(settings) {
   if (settings.waterfallNegative !== undefined) {
     elements.waterfallNegative.value = settings.waterfallNegative;
   }
+  if (settings.dateStart !== undefined) {
+    elements.dateStart.value = settings.dateStart;
+  }
+  if (settings.dateEnd !== undefined) {
+    elements.dateEnd.value = settings.dateEnd;
+  }
   if (settings.advancedJson !== undefined) {
     elements.advancedJson.value = settings.advancedJson;
   }
@@ -3761,6 +3890,8 @@ function applyControlSettings(settings) {
     setChartDimensions(width, height);
     scheduleChartResize();
   }
+
+  syncDateFilterState();
 
   if (elements.renderer.value !== previousRenderer) {
     initChart();
@@ -4289,6 +4420,31 @@ function attachListeners() {
     clearAllDatasets();
   });
 
+  if (elements.clearDateRange) {
+    elements.clearDateRange.addEventListener("click", () => {
+      elements.dateStart.value = "";
+      elements.dateEnd.value = "";
+      syncDateFilterState();
+      scheduleUpdateChart();
+    });
+  }
+
+  const handleDateChange = () => {
+    const hasValue = elements.dateStart.value || elements.dateEnd.value;
+    if (hasValue && elements.xAxisType.value !== "time") {
+      elements.xAxisType.value = "time";
+    }
+    syncDateFilterState();
+    scheduleUpdateChart();
+  };
+
+  if (elements.dateStart && elements.dateEnd) {
+    elements.dateStart.addEventListener("input", handleDateChange);
+    elements.dateStart.addEventListener("change", handleDateChange);
+    elements.dateEnd.addEventListener("input", handleDateChange);
+    elements.dateEnd.addEventListener("change", handleDateChange);
+  }
+
   elements.chartType.addEventListener("change", () => {
     syncChartModeUI();
     renderSeriesOverrides();
@@ -4390,6 +4546,10 @@ function attachListeners() {
   inputsToWatch.forEach((input) => {
     input.addEventListener("input", scheduleUpdateChart);
     input.addEventListener("change", scheduleUpdateChart);
+  });
+
+  elements.xAxisType.addEventListener("change", () => {
+    syncDateFilterState();
   });
 
   elements.renderer.addEventListener("change", () => {
@@ -4573,6 +4733,7 @@ clampChartSize();
 scheduleChartResize();
 syncBackgroundState();
 syncChartModeUI();
+syncDateFilterState();
 renderSeriesOverrides();
 renderAnnotations();
 renderDatasetList();

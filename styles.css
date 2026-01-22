@@ -407,6 +407,13 @@ h2 {
   margin-bottom: 14px;
 }
 
+.date-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
 .field.row {
   flex-direction: row;
   flex-wrap: wrap;
