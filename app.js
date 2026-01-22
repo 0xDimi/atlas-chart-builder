@@ -358,6 +358,9 @@ const elements = {
   lineWidth: document.getElementById("lineWidth"),
   symbolSize: document.getElementById("symbolSize"),
   areaOpacity: document.getElementById("areaOpacity"),
+  barWidth: document.getElementById("barWidth"),
+  barGap: document.getElementById("barGap"),
+  barCategoryGap: document.getElementById("barCategoryGap"),
   xAxisType: document.getElementById("xAxisType"),
   yScale: document.getElementById("yScale"),
   yScaleRight: document.getElementById("yScaleRight"),
@@ -1240,6 +1243,9 @@ function captureDefaultControlState() {
     elements.lineWidth,
     elements.symbolSize,
     elements.areaOpacity,
+    elements.barWidth,
+    elements.barGap,
+    elements.barCategoryGap,
     elements.xAxisType,
     elements.yScale,
     elements.yScaleRight,
@@ -2164,6 +2170,17 @@ function buildDataZoom(axisType) {
   ];
 }
 
+function resolveBarSizing() {
+  const width = parseNumber(elements.barWidth.value);
+  const gap = parseNumber(elements.barGap.value);
+  const categoryGap = parseNumber(elements.barCategoryGap.value);
+  return {
+    barMaxWidth: Number.isFinite(width) ? width : undefined,
+    barGap: Number.isFinite(gap) ? `${gap}%` : undefined,
+    barCategoryGap: Number.isFinite(categoryGap) ? `${categoryGap}%` : undefined,
+  };
+}
+
 function normalizeRowsToPercent(rows, yColumns) {
   return rows.map((row) => {
     const total = yColumns.reduce((sum, col) => {
@@ -2494,6 +2511,7 @@ function buildStandardOption() {
   const sortByX = elements.sortByX.checked;
   const comboDefault = elements.comboDefaultType.value || "line";
   const palette = resolvePalette();
+  const barSizing = resolveBarSizing();
 
   const rows = buildRowData(xColumn, yColumns, axisType, sortByX);
   const normalizedRows = stackedPercent
@@ -2553,7 +2571,14 @@ function buildStandardOption() {
       seriesItem.symbolSize = symbolSize;
       seriesItem.itemStyle = { color };
     } else if (type === "bar") {
-      seriesItem.barMaxWidth = 40;
+      seriesItem.barMaxWidth =
+        barSizing.barMaxWidth !== undefined ? barSizing.barMaxWidth : 40;
+      if (barSizing.barGap !== undefined) {
+        seriesItem.barGap = barSizing.barGap;
+      }
+      if (barSizing.barCategoryGap !== undefined) {
+        seriesItem.barCategoryGap = barSizing.barCategoryGap;
+      }
       seriesItem.itemStyle = { color };
       seriesItem.stack = stacked ? "total" : undefined;
     } else {
@@ -2763,6 +2788,7 @@ function formatNumberShort(value) {
 function buildHistogramOption() {
   const column = elements.histogramColumn.value;
   const sourceRows = getFilteredRows();
+  const barSizing = resolveBarSizing();
   const values = sourceRows
     .map((row) => parseNumber(row[column]))
     .filter((value) => value !== null);
@@ -2798,7 +2824,9 @@ function buildHistogramOption() {
       name: column,
       type: "bar",
       data: counts,
-      barMaxWidth: 40,
+      barMaxWidth: barSizing.barMaxWidth ?? 40,
+      barGap: barSizing.barGap,
+      barCategoryGap: barSizing.barCategoryGap,
       itemStyle: { color: resolvePalette()[0] },
     },
   ];
@@ -2996,6 +3024,7 @@ function buildWaterfallOption() {
   const yColumn = elements.waterfallColumn.value;
   const axisType = elements.xAxisType.value;
   const sortByX = elements.sortByX.checked;
+  const barSizing = resolveBarSizing();
 
   if (!xColumn || !yColumn) {
     updateSeriesCount(0);
@@ -3041,6 +3070,9 @@ function buildWaterfallOption() {
       type: "bar",
       stack: "waterfall",
       data: baseSeries,
+      barMaxWidth: barSizing.barMaxWidth ?? 40,
+      barGap: barSizing.barGap,
+      barCategoryGap: barSizing.barCategoryGap,
       itemStyle: { color: "transparent" },
       emphasis: { itemStyle: { color: "transparent" } },
     },
@@ -3049,7 +3081,9 @@ function buildWaterfallOption() {
       type: "bar",
       stack: "waterfall",
       data: deltaData,
-      barMaxWidth: 40,
+      barMaxWidth: barSizing.barMaxWidth ?? 40,
+      barGap: barSizing.barGap,
+      barCategoryGap: barSizing.barCategoryGap,
     },
   ];
 
@@ -3609,6 +3643,9 @@ function getSettings() {
     lineWidth: elements.lineWidth.value,
     symbolSize: elements.symbolSize.value,
     areaOpacity: elements.areaOpacity.value,
+    barWidth: elements.barWidth.value,
+    barGap: elements.barGap.value,
+    barCategoryGap: elements.barCategoryGap.value,
     xAxisType: elements.xAxisType.value,
     yScale: elements.yScale.value,
     yScaleRight: elements.yScaleRight.value,
@@ -3712,6 +3749,15 @@ function applyControlSettings(settings) {
   }
   if (settings.areaOpacity !== undefined) {
     elements.areaOpacity.value = settings.areaOpacity;
+  }
+  if (settings.barWidth !== undefined) {
+    elements.barWidth.value = settings.barWidth;
+  }
+  if (settings.barGap !== undefined) {
+    elements.barGap.value = settings.barGap;
+  }
+  if (settings.barCategoryGap !== undefined) {
+    elements.barCategoryGap.value = settings.barCategoryGap;
   }
   if (settings.xAxisType !== undefined) {
     elements.xAxisType.value = settings.xAxisType;
@@ -4491,6 +4537,9 @@ function attachListeners() {
     elements.lineWidth,
     elements.symbolSize,
     elements.areaOpacity,
+    elements.barWidth,
+    elements.barGap,
+    elements.barCategoryGap,
     elements.xAxisType,
     elements.yScale,
     elements.yScaleRight,
