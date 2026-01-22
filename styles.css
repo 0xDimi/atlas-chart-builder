@@ -111,21 +111,24 @@ body {
   line-height: 1.05;
 }
 
-.brand-row {
+.logo-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px 6px 8px;
+  justify-content: center;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid rgba(20, 24, 28, 0.12);
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 10px 22px rgba(20, 24, 28, 0.08);
-  margin-bottom: 6px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 28px rgba(20, 24, 28, 0.1);
 }
 
 .brand-logo {
-  width: 26px;
-  height: 26px;
+  height: clamp(28px, 3.2vw, 40px);
+  width: auto;
+  max-width: 220px;
   object-fit: contain;
   display: block;
 }
@@ -1015,6 +1018,12 @@ button.ghost:hover {
   .hero {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .logo-corner {
+    position: static;
+    justify-self: end;
+    margin-top: 12px;
   }
 }
 
