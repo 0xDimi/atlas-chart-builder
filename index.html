@@ -300,6 +300,47 @@
                   <h2>API connectors</h2>
                   <span id="apiStatus" class="status"></span>
                 </div>
+                <div id="defillamaGuided" class="guided-api">
+                  <h3>DefiLlama quick select</h3>
+                  <div class="field row">
+                    <div>
+                      <label for="defillamaMetric">Metric</label>
+                      <select id="defillamaMetric">
+                        <option value="protocol-tvl">Protocol TVL</option>
+                        <option value="protocol-chain-tvl">
+                          Protocol TVL (by chain)
+                        </option>
+                        <option value="protocol-fees">Protocol fees</option>
+                        <option value="protocol-revenue">Protocol revenue</option>
+                        <option value="dex-volume">DEX volume</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="defillamaProtocol">Protocol</label>
+                      <input
+                        id="defillamaProtocol"
+                        list="defillamaProtocolList"
+                        type="text"
+                        placeholder="aave"
+                      />
+                      <datalist id="defillamaProtocolList"></datalist>
+                    </div>
+                  </div>
+                  <div class="field row">
+                    <div id="defillamaChainField">
+                      <label for="defillamaChain">Chain</label>
+                      <select id="defillamaChain"></select>
+                    </div>
+                    <button
+                      id="defillamaLoad"
+                      class="secondary"
+                      type="button"
+                    >
+                      Load DefiLlama dataset
+                    </button>
+                  </div>
+                  <p id="defillamaStatus" class="hint"></p>
+                </div>
                 <div class="field">
                   <label for="apiBaseUrl">API host</label>
                   <input
@@ -1089,6 +1130,44 @@
                   <div>
                     <label for="backgroundColor">Background color</label>
                     <input id="backgroundColor" type="color" value="#f6efe6" />
+                  </div>
+                </div>
+                <div class="field row">
+                  <label class="checkbox">
+                    <input id="watermarkEnabled" type="checkbox" />
+                    Center Alea watermark
+                  </label>
+                  <div class="range-field">
+                    <label for="watermarkOpacity">Watermark opacity</label>
+                    <div class="range-control">
+                      <input
+                        id="watermarkOpacity"
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value="0.12"
+                      />
+                      <span id="watermarkOpacityValue" class="range-value"
+                        >12%</span
+                      >
+                    </div>
+                  </div>
+                  <div class="range-field">
+                    <label for="watermarkScale">Watermark size</label>
+                    <div class="range-control">
+                      <input
+                        id="watermarkScale"
+                        type="range"
+                        min="0.4"
+                        max="1.4"
+                        step="0.05"
+                        value="1"
+                      />
+                      <span id="watermarkScaleValue" class="range-value"
+                        >100%</span
+                      >
+                    </div>
                   </div>
                 </div>
                 <div class="field">

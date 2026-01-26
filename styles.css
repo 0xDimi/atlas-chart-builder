@@ -407,6 +407,10 @@ h2 {
   margin-bottom: 14px;
 }
 
+.guided-api h3 {
+  margin: 0 0 10px;
+}
+
 .date-range {
   display: flex;
   flex-wrap: wrap;
@@ -419,6 +423,27 @@ h2 {
   flex-wrap: wrap;
   gap: 12px;
   align-items: flex-end;
+}
+
+.range-field {
+  min-width: 220px;
+}
+
+.range-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.range-control input[type="range"] {
+  flex: 1;
+}
+
+.range-value {
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 44px;
+  text-align: right;
 }
 
 label {

@@ -316,6 +316,14 @@ const elements = {
   apiClear: document.getElementById("apiClear"),
   apiStatus: document.getElementById("apiStatus"),
   apiHint: document.getElementById("apiHint"),
+  defillamaGuided: document.getElementById("defillamaGuided"),
+  defillamaMetric: document.getElementById("defillamaMetric"),
+  defillamaProtocol: document.getElementById("defillamaProtocol"),
+  defillamaProtocolList: document.getElementById("defillamaProtocolList"),
+  defillamaChainField: document.getElementById("defillamaChainField"),
+  defillamaChain: document.getElementById("defillamaChain"),
+  defillamaLoad: document.getElementById("defillamaLoad"),
+  defillamaStatus: document.getElementById("defillamaStatus"),
   datasetList: document.getElementById("datasetList"),
   projectName: document.getElementById("projectName"),
   projectSelect: document.getElementById("projectSelect"),
@@ -408,6 +416,11 @@ const elements = {
   gridColor: document.getElementById("gridColor"),
   transparentBg: document.getElementById("transparentBg"),
   backgroundColor: document.getElementById("backgroundColor"),
+  watermarkEnabled: document.getElementById("watermarkEnabled"),
+  watermarkOpacity: document.getElementById("watermarkOpacity"),
+  watermarkOpacityValue: document.getElementById("watermarkOpacityValue"),
+  watermarkScale: document.getElementById("watermarkScale"),
+  watermarkScaleValue: document.getElementById("watermarkScaleValue"),
   resetChart: document.getElementById("resetChart"),
   exportName: document.getElementById("exportName"),
   exportScale: document.getElementById("exportScale"),
@@ -497,6 +510,9 @@ const state = {
 
 const API_LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
 const API_BASE_URL_KEY = "atlasChartBuilderApiBaseUrl";
+const DEFILLAMA_PUBLIC_BASE_URL = "https://api.llama.fi";
+const WATERMARK_IMAGE_SRC = "Alea Logo_Dark Horizontal.png";
+const WATERMARK_ASPECT_RATIO = 4;
 const isLocalHost =
   typeof window !== "undefined" &&
   API_LOCAL_HOSTS.has(window.location.hostname);
@@ -506,6 +522,39 @@ const API_PROVIDER_LABELS = {
   defillama: "DefiLlama",
   "defillama-sdk": "DefiLlama (SDK)",
   tokenterminal: "Token Terminal",
+};
+
+const DEFILLAMA_METRIC_CONFIGS = {
+  "protocol-tvl": {
+    label: "TVL",
+    path: (slug) => `/protocol/${slug}`,
+    jsonPath: "tvl",
+    needsChain: false,
+  },
+  "protocol-chain-tvl": {
+    label: "TVL",
+    path: (slug) => `/protocol/${slug}`,
+    jsonPath: (_, chain) => `chainTvls.${chain}.tvl`,
+    needsChain: true,
+  },
+  "protocol-fees": {
+    label: "Fees",
+    path: (slug) => `/summary/fees/${slug}`,
+    jsonPath: "totalDataChart",
+    needsChain: false,
+  },
+  "protocol-revenue": {
+    label: "Revenue",
+    path: (slug) => `/summary/revenue/${slug}`,
+    jsonPath: "totalDataChart",
+    needsChain: false,
+  },
+  "dex-volume": {
+    label: "DEX volume",
+    path: (slug) => `/summary/dexs/${slug}`,
+    jsonPath: "totalDataChart",
+    needsChain: false,
+  },
 };
 
 if (apiEnabled) {
@@ -520,6 +569,8 @@ let currentColumns = [];
 let quickAxisTarget = "x";
 let apiFetchInFlight = false;
 let zoomSnapshot = null;
+const defillamaProtocolIndex = new Map();
+const defillamaProtocolNameIndex = new Map();
 
 const axisTargets = {
   x: {
@@ -644,6 +695,8 @@ function updateApiHint(provider) {
   let hint = "";
   if (state.apiBaseUrl) {
     hint = `Using ${state.apiBaseUrl} for API requests.`;
+  } else if (provider === "defillama") {
+    hint = "Using the public DefiLlama API (no host required).";
   } else if (isLocalHost) {
     hint = "Local-only: requires the proxy server and API keys.";
   } else {
@@ -659,11 +712,24 @@ function syncApiControls() {
   if (!elements.apiFetch) {
     return;
   }
-  elements.apiFetch.disabled = apiFetchInFlight || !state.apiBaseUrl;
+  const provider = elements.apiProvider ? elements.apiProvider.value : "";
+  const canFetch =
+    Boolean(state.apiBaseUrl) || (provider === "defillama" && apiEnabled);
+  elements.apiFetch.disabled = apiFetchInFlight || !canFetch;
 }
 
 function getApiProviderLabel(provider) {
   return API_PROVIDER_LABELS[provider] || "API";
+}
+
+function resolveApiBaseUrl(provider) {
+  if (state.apiBaseUrl) {
+    return state.apiBaseUrl;
+  }
+  if (provider === "defillama") {
+    return DEFILLAMA_PUBLIC_BASE_URL;
+  }
+  return "";
 }
 
 function syncApiProviderUI() {
@@ -686,6 +752,12 @@ function syncApiProviderUI() {
   if (elements.apiSdkArgsField) {
     elements.apiSdkArgsField.classList.toggle("is-hidden", !usingSdk);
   }
+  if (elements.defillamaGuided) {
+    elements.defillamaGuided.classList.toggle("is-hidden", provider !== "defillama");
+    if (provider === "defillama") {
+      syncDefillamaChainOptions();
+    }
+  }
   updateApiHint(provider);
 }
 
@@ -701,6 +773,142 @@ function setApiAvailability() {
   syncApiBaseUrlInput();
   syncApiProviderUI();
   syncApiControls();
+}
+
+function updateDefillamaStatus(message, isError) {
+  if (!elements.defillamaStatus) {
+    return;
+  }
+  elements.defillamaStatus.textContent = message || "";
+  elements.defillamaStatus.style.color = isError ? "#b3412f" : "";
+}
+
+function normalizeDefillamaProtocolLabel(protocol) {
+  if (!protocol) {
+    return "";
+  }
+  const name = protocol.name || protocol.slug || "";
+  const slug = protocol.slug || "";
+  if (name && slug && name.toLowerCase() !== slug.toLowerCase()) {
+    return `${name} (${slug})`;
+  }
+  return name || slug;
+}
+
+function resolveDefillamaProtocolSlug(input) {
+  const value = String(input || "").trim();
+  if (!value) {
+    return "";
+  }
+  const match = value.match(/\(([^)]+)\)\s*$/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  const lower = value.toLowerCase();
+  if (defillamaProtocolIndex.has(lower)) {
+    return lower;
+  }
+  if (defillamaProtocolNameIndex.has(lower)) {
+    return defillamaProtocolNameIndex.get(lower);
+  }
+  return value;
+}
+
+function syncDefillamaChainOptions() {
+  if (!elements.defillamaChain || !elements.defillamaMetric) {
+    return;
+  }
+  const metric = elements.defillamaMetric.value;
+  const needsChain =
+    DEFILLAMA_METRIC_CONFIGS[metric] &&
+    DEFILLAMA_METRIC_CONFIGS[metric].needsChain;
+  if (elements.defillamaChainField) {
+    elements.defillamaChainField.classList.toggle("is-hidden", !needsChain);
+  }
+  if (!needsChain) {
+    populateSelect(elements.defillamaChain, [], "Chain not required");
+    return;
+  }
+  const slug = resolveDefillamaProtocolSlug(elements.defillamaProtocol.value);
+  const protocol = defillamaProtocolIndex.get(slug);
+  const chains = protocol && Array.isArray(protocol.chains) ? protocol.chains : [];
+  if (!chains.length) {
+    populateSelect(elements.defillamaChain, [], "Select protocol first");
+    return;
+  }
+  const uniqueChains = Array.from(new Set(chains)).sort();
+  populateSelect(elements.defillamaChain, uniqueChains, "Select chain");
+}
+
+async function loadDefillamaProtocols() {
+  if (!elements.defillamaProtocolList) {
+    return;
+  }
+  updateDefillamaStatus("Loading DefiLlama protocols...", false);
+  try {
+    const response = await fetch(`${DEFILLAMA_PUBLIC_BASE_URL}/protocols`);
+    if (!response.ok) {
+      throw new Error(`Failed to load protocols (${response.status})`);
+    }
+    const protocols = await response.json();
+    defillamaProtocolIndex.clear();
+    defillamaProtocolNameIndex.clear();
+    const fragment = document.createDocumentFragment();
+    protocols
+      .slice()
+      .sort((a, b) => (b.tvl || 0) - (a.tvl || 0))
+      .forEach((protocol) => {
+        if (!protocol || !protocol.slug) {
+          return;
+        }
+        const slug = String(protocol.slug).toLowerCase();
+        defillamaProtocolIndex.set(slug, protocol);
+        if (protocol.name) {
+          defillamaProtocolNameIndex.set(String(protocol.name).toLowerCase(), slug);
+        }
+        const option = document.createElement("option");
+        option.value = normalizeDefillamaProtocolLabel(protocol);
+        fragment.appendChild(option);
+      });
+    elements.defillamaProtocolList.innerHTML = "";
+    elements.defillamaProtocolList.appendChild(fragment);
+    updateDefillamaStatus(`Loaded ${defillamaProtocolIndex.size} protocols.`, false);
+    syncDefillamaChainOptions();
+  } catch (error) {
+    updateDefillamaStatus(
+      "Could not load protocol list. You can still type a slug.",
+      true
+    );
+  }
+}
+
+function buildDefillamaRequest() {
+  const metricKey = elements.defillamaMetric.value;
+  const metric = DEFILLAMA_METRIC_CONFIGS[metricKey];
+  if (!metric) {
+    throw new Error("Select a metric.");
+  }
+  const slug = resolveDefillamaProtocolSlug(elements.defillamaProtocol.value);
+  if (!slug) {
+    throw new Error("Enter a protocol.");
+  }
+  const protocol = defillamaProtocolIndex.get(slug);
+  const name = protocol && protocol.name ? protocol.name : slug;
+  const chain = elements.defillamaChain ? elements.defillamaChain.value : "";
+  if (metric.needsChain && !chain) {
+    throw new Error("Select a chain.");
+  }
+  const path = metric.path(slug);
+  const jsonPath =
+    typeof metric.jsonPath === "function"
+      ? metric.jsonPath(slug, chain)
+      : metric.jsonPath;
+  const suffix = metric.needsChain && chain ? `${chain} ${metric.label}` : metric.label;
+  return {
+    path,
+    jsonPath,
+    datasetName: `DefiLlama ${name} ${suffix}`.trim(),
+  };
 }
 
 function updateProjectStatus(message, isError) {
@@ -1151,6 +1359,34 @@ function syncBackgroundState() {
   elements.backgroundColor.disabled = elements.transparentBg.checked;
 }
 
+function formatOpacityValue(value) {
+  const percent = Math.round(value * 100);
+  return `${percent}%`;
+}
+
+function syncWatermarkState() {
+  if (
+    !elements.watermarkEnabled ||
+    !elements.watermarkOpacity ||
+    !elements.watermarkScale
+  ) {
+    return;
+  }
+  const enabled = elements.watermarkEnabled.checked;
+  elements.watermarkOpacity.disabled = !enabled;
+  elements.watermarkScale.disabled = !enabled;
+  if (elements.watermarkOpacityValue) {
+    const opacity = parseNumber(elements.watermarkOpacity.value);
+    const safeOpacity = Number.isFinite(opacity) ? opacity : 0;
+    elements.watermarkOpacityValue.textContent = formatOpacityValue(safeOpacity);
+  }
+  if (elements.watermarkScaleValue) {
+    const scale = parseNumber(elements.watermarkScale.value);
+    const safeScale = Number.isFinite(scale) ? scale : 1;
+    elements.watermarkScaleValue.textContent = formatOpacityValue(safeScale);
+  }
+}
+
 function syncDateFilterState() {
   if (!elements.dateStart || !elements.dateEnd) {
     return;
@@ -1339,6 +1575,9 @@ function captureDefaultControlState() {
     elements.gridColor,
     elements.transparentBg,
     elements.backgroundColor,
+    elements.watermarkEnabled,
+    elements.watermarkOpacity,
+    elements.watermarkScale,
     elements.histogramBins,
     elements.waterfallMode,
     elements.waterfallPositive,
@@ -1376,6 +1615,7 @@ function resetChartSettings() {
 
   refreshColumnControls();
   syncBackgroundState();
+  syncWatermarkState();
   syncChartModeUI();
   syncDateFilterState();
   renderSeriesOverrides();
@@ -1684,11 +1924,6 @@ async function fetchApiDataset() {
     updateApiStatus("API connector UI missing.", true);
     return;
   }
-  const baseUrl = getApiBaseUrl();
-  if (!baseUrl) {
-    updateApiStatus("Set an API host to enable connectors.", true);
-    return;
-  }
   const endpoint = elements.apiEndpoint.value.trim();
   if (!endpoint) {
     updateApiStatus(
@@ -1700,6 +1935,11 @@ async function fetchApiDataset() {
     return;
   }
   const provider = elements.apiProvider.value;
+  const baseUrl = resolveApiBaseUrl(provider);
+  if (!baseUrl) {
+    updateApiStatus("Set an API host to enable connectors.", true);
+    return;
+  }
   const datasetName =
     elements.apiDatasetName && elements.apiDatasetName.value.trim()
       ? elements.apiDatasetName.value.trim()
@@ -1714,14 +1954,22 @@ async function fetchApiDataset() {
   updateApiStatus("Fetching dataset...", false);
 
   try {
-    const url = new URL(`/api/${provider}`, baseUrl);
-    if (provider === DEFILLAMA_SDK_PROVIDER) {
-      url.searchParams.set("method", endpoint);
-      if (sdkArgs) {
-        url.searchParams.set("args", sdkArgs);
-      }
+    let url;
+    if (provider === "defillama" && baseUrl === DEFILLAMA_PUBLIC_BASE_URL) {
+      const trimmed = endpoint.replace(/^\//, "");
+      url = new URL(
+        /^https?:\/\//i.test(endpoint) ? endpoint : `${baseUrl}/${trimmed}`
+      );
     } else {
-      url.searchParams.set("path", endpoint);
+      url = new URL(`/api/${provider}`, baseUrl);
+      if (provider === DEFILLAMA_SDK_PROVIDER) {
+        url.searchParams.set("method", endpoint);
+        if (sdkArgs) {
+          url.searchParams.set("args", sdkArgs);
+        }
+      } else {
+        url.searchParams.set("path", endpoint);
+      }
     }
     const response = await fetch(url.toString());
     const contentType = response.headers.get("content-type") || "";
@@ -2351,6 +2599,40 @@ function gridConfig(position, axisInsets = {}) {
   return grid;
 }
 
+function buildWatermarkGraphic() {
+  if (!elements.watermarkEnabled || !elements.watermarkEnabled.checked) {
+    return null;
+  }
+  const opacity =
+    Math.min(1, Math.max(0, parseNumber(elements.watermarkOpacity.value) || 0));
+  const scaleRaw = parseNumber(elements.watermarkScale?.value);
+  const scale = Math.min(1.6, Math.max(0.3, Number.isFinite(scaleRaw) ? scaleRaw : 1));
+  const chartWidth = chart ? chart.getWidth() : 800;
+  const chartHeight = chart ? chart.getHeight() : 500;
+  const baseWidth = Math.min(360, Math.round(chartWidth * 0.5));
+  const maxWidthByWidth = Math.round(chartWidth * 0.8);
+  const maxWidthByHeight = Math.round(chartHeight * 0.6 * WATERMARK_ASPECT_RATIO);
+  const maxWidth = Math.max(140, Math.min(maxWidthByWidth, maxWidthByHeight));
+  const width = Math.min(Math.max(140, Math.round(baseWidth * scale)), maxWidth);
+  const height = Math.round(width / WATERMARK_ASPECT_RATIO);
+  return [
+    {
+      id: "center-watermark",
+      type: "image",
+      silent: true,
+      left: "center",
+      top: "middle",
+      z: 0,
+      style: {
+        image: WATERMARK_IMAGE_SRC,
+        width,
+        height,
+        opacity,
+      },
+    },
+  ];
+}
+
 function buildBaseOption() {
   const textColor = elements.textColor.value;
   const backgroundColor = elements.transparentBg.checked
@@ -2363,6 +2645,7 @@ function buildBaseOption() {
   const resolvedLeft = Number.isFinite(titleLeft) ? titleLeft : 8;
   const resolvedTop = Number.isFinite(titleTop) ? titleTop : 8;
   const titleAlign = elements.titleAlign.value || "left";
+  const watermarkGraphic = buildWatermarkGraphic();
 
   return {
     backgroundColor,
@@ -2371,6 +2654,7 @@ function buildBaseOption() {
       fontFamily: elements.fontFamily.value,
       color: textColor,
     },
+    graphic: watermarkGraphic || undefined,
     title: {
       text: elements.chartTitle.value,
       subtext: elements.chartSubtitle.value,
@@ -3746,6 +4030,9 @@ function getSettings() {
     gridColor: elements.gridColor.value,
     transparentBg: elements.transparentBg.checked,
     backgroundColor: elements.backgroundColor.value,
+    watermarkEnabled: elements.watermarkEnabled.checked,
+    watermarkOpacity: elements.watermarkOpacity.value,
+    watermarkScale: elements.watermarkScale.value,
     exportName: elements.exportName.value,
     exportScale: elements.exportScale.value,
     histogramColumn: elements.histogramColumn.value,
@@ -3951,6 +4238,15 @@ function applyControlSettings(settings) {
   if (settings.backgroundColor !== undefined) {
     elements.backgroundColor.value = settings.backgroundColor;
   }
+  if (settings.watermarkEnabled !== undefined) {
+    elements.watermarkEnabled.checked = settings.watermarkEnabled;
+  }
+  if (settings.watermarkOpacity !== undefined) {
+    elements.watermarkOpacity.value = settings.watermarkOpacity;
+  }
+  if (settings.watermarkScale !== undefined) {
+    elements.watermarkScale.value = settings.watermarkScale;
+  }
   if (settings.exportName !== undefined) {
     elements.exportName.value = settings.exportName;
   }
@@ -3991,6 +4287,7 @@ function applyControlSettings(settings) {
     scheduleChartResize();
   }
 
+  syncWatermarkState();
   syncDateFilterState();
 
   if (elements.renderer.value !== previousRenderer) {
@@ -4481,12 +4778,53 @@ function attachListeners() {
     elements.apiProvider.addEventListener("change", () => {
       syncApiProviderUI();
       updateApiStatus("", false);
+      syncApiControls();
     });
   }
 
   if (elements.apiClear && apiEnabled) {
     elements.apiClear.addEventListener("click", () => {
       clearApiForm();
+    });
+  }
+
+  if (elements.defillamaMetric) {
+    elements.defillamaMetric.addEventListener("change", () => {
+      syncDefillamaChainOptions();
+    });
+  }
+
+  if (elements.defillamaProtocol) {
+    elements.defillamaProtocol.addEventListener("input", () => {
+      syncDefillamaChainOptions();
+    });
+  }
+
+  if (elements.defillamaLoad) {
+    elements.defillamaLoad.addEventListener("click", () => {
+      try {
+        if (elements.apiProvider) {
+          elements.apiProvider.value = "defillama";
+        }
+        syncApiProviderUI();
+        const request = buildDefillamaRequest();
+        if (elements.apiEndpoint) {
+          elements.apiEndpoint.value = request.path;
+        }
+        if (elements.apiJsonPath) {
+          elements.apiJsonPath.value = request.jsonPath;
+        }
+        if (elements.apiDatasetName) {
+          elements.apiDatasetName.value = request.datasetName;
+        }
+        updateDefillamaStatus("", false);
+        fetchApiDataset();
+      } catch (error) {
+        updateDefillamaStatus(
+          error instanceof Error ? error.message : "Invalid selection.",
+          true
+        );
+      }
     });
   }
 
@@ -4640,6 +4978,9 @@ function attachListeners() {
     elements.gridColor,
     elements.transparentBg,
     elements.backgroundColor,
+    elements.watermarkEnabled,
+    elements.watermarkOpacity,
+    elements.watermarkScale,
     elements.histogramColumn,
     elements.histogramBins,
     elements.waterfallColumn,
@@ -4673,6 +5014,24 @@ function attachListeners() {
   elements.transparentBg.addEventListener("change", () => {
     syncBackgroundState();
   });
+
+  if (elements.watermarkEnabled) {
+    elements.watermarkEnabled.addEventListener("change", () => {
+      syncWatermarkState();
+    });
+  }
+
+  if (elements.watermarkOpacity) {
+    elements.watermarkOpacity.addEventListener("input", () => {
+      syncWatermarkState();
+    });
+  }
+
+  if (elements.watermarkScale) {
+    elements.watermarkScale.addEventListener("input", () => {
+      syncWatermarkState();
+    });
+  }
 
   elements.copyPng.addEventListener("click", () => {
     copyChart();
@@ -4837,6 +5196,7 @@ attachResizeHandles();
 clampChartSize();
 scheduleChartResize();
 syncBackgroundState();
+syncWatermarkState();
 syncChartModeUI();
 syncDateFilterState();
 renderSeriesOverrides();
@@ -4847,3 +5207,4 @@ updateFullscreenButton();
 syncQuickEditorFromControls();
 setTitlePickMode(false);
 captureDefaultControlState();
+loadDefillamaProtocols();
