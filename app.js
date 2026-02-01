@@ -3035,8 +3035,8 @@ function computeAxisSpacing(labelSize, nameSize, isYAxis) {
     return {
       margin,
       nameGap: Math.max(
-        120,
-        Math.round(labelSize * 3.2 + nameSize * 1.6 + 48)
+        160,
+        Math.round(labelSize * 4.2 + nameSize * 2 + 72)
       ),
     };
   }
