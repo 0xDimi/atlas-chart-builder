@@ -411,6 +411,38 @@ h2 {
   margin: 0 0 10px;
 }
 
+.token-terminal-actions {
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.token-terminal-selected {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.token-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f2f3f5;
+  color: #1f1f1f;
+  font-size: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.token-chip button {
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
 .date-range {
   display: flex;
   flex-wrap: wrap;
@@ -752,10 +784,7 @@ button.ghost:hover {
   border-radius: var(--radius);
   border: 1px solid rgba(20, 24, 28, 0.12);
   background-color: rgba(255, 255, 255, 0.85);
-  background-image:
-    linear-gradient(rgba(20, 24, 28, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 24, 28, 0.05) 1px, transparent 1px);
-  background-size: 26px 26px;
+  background-image: none;
   overflow: visible;
   flex: 0 0 auto;
 }

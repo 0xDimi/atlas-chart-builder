@@ -324,6 +324,14 @@ const elements = {
   defillamaChain: document.getElementById("defillamaChain"),
   defillamaLoad: document.getElementById("defillamaLoad"),
   defillamaStatus: document.getElementById("defillamaStatus"),
+  tokenTerminalGuided: document.getElementById("tokenTerminalGuided"),
+  tokenTerminalProject: document.getElementById("tokenTerminalProject"),
+  tokenTerminalProjectList: document.getElementById("tokenTerminalProjectList"),
+  tokenTerminalAddCoin: document.getElementById("tokenTerminalAddCoin"),
+  tokenTerminalClearCoins: document.getElementById("tokenTerminalClearCoins"),
+  tokenTerminalSelectedList: document.getElementById("tokenTerminalSelectedList"),
+  tokenTerminalLoadPrice: document.getElementById("tokenTerminalLoadPrice"),
+  tokenTerminalStatus: document.getElementById("tokenTerminalStatus"),
   datasetList: document.getElementById("datasetList"),
   projectName: document.getElementById("projectName"),
   projectSelect: document.getElementById("projectSelect"),
@@ -340,11 +348,13 @@ const elements = {
   applyTemplate: document.getElementById("applyTemplate"),
   projectStatus: document.getElementById("projectStatus"),
   xColumn: document.getElementById("xColumn"),
+  dateRangePreset: document.getElementById("dateRangePreset"),
   dateStart: document.getElementById("dateStart"),
   dateEnd: document.getElementById("dateEnd"),
   clearDateRange: document.getElementById("clearDateRange"),
   yColumns: document.getElementById("yColumns"),
   yColumnsField: document.getElementById("yColumnsField"),
+  compareMode: document.getElementById("compareMode"),
   chartType: document.getElementById("chartType"),
   comboDefaults: document.getElementById("comboDefaults"),
   comboDefaultType: document.getElementById("comboDefaultType"),
@@ -569,8 +579,15 @@ let currentColumns = [];
 let quickAxisTarget = "x";
 let apiFetchInFlight = false;
 let zoomSnapshot = null;
+let suppressDatePresetSync = false;
 const defillamaProtocolIndex = new Map();
 const defillamaProtocolNameIndex = new Map();
+const tokenTerminalProjectIndex = new Map();
+const tokenTerminalProjectNameIndex = new Map();
+const tokenTerminalProjectSymbolIndex = new Map();
+const tokenTerminalMetricIndex = new Map();
+let tokenTerminalAvailableProjects = new Set();
+const tokenTerminalSelectedProjects = [];
 
 const axisTargets = {
   x: {
@@ -758,6 +775,20 @@ function syncApiProviderUI() {
       syncDefillamaChainOptions();
     }
   }
+  if (elements.tokenTerminalGuided) {
+    elements.tokenTerminalGuided.classList.toggle(
+      "is-hidden",
+      provider !== "tokenterminal"
+    );
+    if (provider === "tokenterminal") {
+      loadTokenTerminalProjects();
+      if (!tokenTerminalMetricIndex.size) {
+        loadTokenTerminalMetrics();
+      } else {
+        loadTokenTerminalMetricProjects(resolveTokenTerminalPriceMetric());
+      }
+    }
+  }
   updateApiHint(provider);
 }
 
@@ -781,6 +812,78 @@ function updateDefillamaStatus(message, isError) {
   }
   elements.defillamaStatus.textContent = message || "";
   elements.defillamaStatus.style.color = isError ? "#b3412f" : "";
+}
+
+function updateTokenTerminalStatus(message, isError) {
+  if (!elements.tokenTerminalStatus) {
+    return;
+  }
+  elements.tokenTerminalStatus.textContent = message || "";
+  elements.tokenTerminalStatus.style.color = isError ? "#b3412f" : "";
+}
+
+function normalizeTokenTerminalProjectLabel(project) {
+  if (!project) {
+    return "";
+  }
+  const name = project.name || project.project_name || "";
+  const id = project.project_id || project.id || "";
+  const symbol = project.symbol ? project.symbol.toUpperCase() : "";
+  const labelParts = [];
+  if (name) {
+    labelParts.push(name);
+  }
+  if (id && name && id.toLowerCase() !== name.toLowerCase()) {
+    labelParts.push(`(${id})`);
+  } else if (id && !name) {
+    labelParts.push(id);
+  }
+  if (symbol) {
+    labelParts.push(`[${symbol}]`);
+  }
+  return labelParts.join(" ").trim();
+}
+
+function resolveTokenTerminalProjectId(input) {
+  const value = String(input || "").trim();
+  if (!value) {
+    return "";
+  }
+  const match = value.match(/\(([^)]+)\)/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  const symbolMatch = value.match(/\[([^\]]+)\]/);
+  if (symbolMatch && symbolMatch[1]) {
+    const symbolKey = symbolMatch[1].trim().toLowerCase();
+    if (tokenTerminalProjectSymbolIndex.has(symbolKey)) {
+      return tokenTerminalProjectSymbolIndex.get(symbolKey);
+    }
+  }
+  const lower = value.toLowerCase();
+  if (tokenTerminalProjectIndex.has(lower)) {
+    return lower;
+  }
+  if (tokenTerminalProjectNameIndex.has(lower)) {
+    return tokenTerminalProjectNameIndex.get(lower);
+  }
+  if (tokenTerminalProjectSymbolIndex.has(lower)) {
+    return tokenTerminalProjectSymbolIndex.get(lower);
+  }
+  return value;
+}
+
+function resolveTokenTerminalPriceMetric() {
+  if (tokenTerminalMetricIndex.has("price")) {
+    return "price";
+  }
+  for (const [metricId, metric] of tokenTerminalMetricIndex.entries()) {
+    const name = String(metric?.metric_name || metric?.name || "").toLowerCase();
+    if (name.includes("price")) {
+      return metricId;
+    }
+  }
+  return "price";
 }
 
 function normalizeDefillamaProtocolLabel(protocol) {
@@ -882,6 +985,432 @@ async function loadDefillamaProtocols() {
   }
 }
 
+function renderTokenTerminalProjectList() {
+  if (!elements.tokenTerminalProjectList) {
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  const available =
+    tokenTerminalAvailableProjects && tokenTerminalAvailableProjects.size
+      ? tokenTerminalAvailableProjects
+      : null;
+  tokenTerminalProjectIndex.forEach((project, slug) => {
+    if (available && !available.has(slug)) {
+      return;
+    }
+    const option = document.createElement("option");
+    option.value = normalizeTokenTerminalProjectLabel(project);
+    fragment.appendChild(option);
+  });
+  elements.tokenTerminalProjectList.innerHTML = "";
+  elements.tokenTerminalProjectList.appendChild(fragment);
+}
+
+function renderTokenTerminalSelectedProjects() {
+  if (!elements.tokenTerminalSelectedList) {
+    return;
+  }
+  elements.tokenTerminalSelectedList.innerHTML = "";
+  if (!tokenTerminalSelectedProjects.length) {
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  tokenTerminalSelectedProjects.forEach((project) => {
+    const chip = document.createElement("span");
+    chip.className = "token-chip";
+    chip.textContent = project.label || project.name || project.id;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Remove ${project.label || project.id}`);
+    remove.addEventListener("click", () => {
+      removeTokenTerminalSelection(project.slug);
+    });
+    chip.appendChild(remove);
+    fragment.appendChild(chip);
+  });
+  elements.tokenTerminalSelectedList.appendChild(fragment);
+}
+
+function removeTokenTerminalSelection(slug) {
+  const index = tokenTerminalSelectedProjects.findIndex(
+    (project) => project.slug === slug
+  );
+  if (index === -1) {
+    return;
+  }
+  tokenTerminalSelectedProjects.splice(index, 1);
+  renderTokenTerminalSelectedProjects();
+}
+
+function clearTokenTerminalSelections() {
+  tokenTerminalSelectedProjects.length = 0;
+  renderTokenTerminalSelectedProjects();
+}
+
+function addTokenTerminalSelection(value) {
+  const resolved = resolveTokenTerminalProjectId(value);
+  if (!resolved) {
+    updateTokenTerminalStatus("Enter a coin from the list.", true);
+    return;
+  }
+  const slug = String(resolved).toLowerCase();
+  const project = tokenTerminalProjectIndex.get(slug);
+  if (!project) {
+    updateTokenTerminalStatus(
+      `Unknown coin: ${resolved}. Pick from the list.`,
+      true
+    );
+    return;
+  }
+  const projectId = project.project_id || project.id || resolved;
+  if (
+    tokenTerminalSelectedProjects.some(
+      (entry) => entry.slug === slug || entry.id === projectId
+    )
+  ) {
+    updateTokenTerminalStatus("Coin already added.", false);
+    return;
+  }
+  tokenTerminalSelectedProjects.push({
+    id: String(projectId),
+    slug,
+    name: project.name || projectId,
+    label: normalizeTokenTerminalProjectLabel(project),
+  });
+  renderTokenTerminalSelectedProjects();
+  if (elements.tokenTerminalProject) {
+    elements.tokenTerminalProject.value = "";
+  }
+  updateTokenTerminalStatus("", false);
+}
+
+function getTokenTerminalSelections() {
+  if (tokenTerminalSelectedProjects.length) {
+    return {
+      ids: tokenTerminalSelectedProjects.map((project) => project.id),
+      names: tokenTerminalSelectedProjects.map(
+        (project) => project.name || project.id
+      ),
+      unknown: [],
+    };
+  }
+  const input = elements.tokenTerminalProject?.value || "";
+  return parseTokenTerminalProjectIds(input);
+}
+
+async function loadTokenTerminalProjects() {
+  if (!elements.tokenTerminalProjectList) {
+    return;
+  }
+  const baseUrl = resolveApiBaseUrl("tokenterminal");
+  if (!baseUrl) {
+    updateTokenTerminalStatus(
+      "Set API host to load Token Terminal coins.",
+      true
+    );
+    return;
+  }
+  updateTokenTerminalStatus("Loading Token Terminal coins...", false);
+  try {
+    const url = new URL("/api/tokenterminal", baseUrl);
+    url.searchParams.set("path", "/projects");
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to load projects (${response.status})`);
+    }
+    const payload = await response.json();
+    const projects = Array.isArray(payload?.data) ? payload.data : payload;
+    if (!Array.isArray(projects)) {
+      throw new Error("Project list missing.");
+    }
+    tokenTerminalProjectIndex.clear();
+    tokenTerminalProjectNameIndex.clear();
+    tokenTerminalProjectSymbolIndex.clear();
+    projects.forEach((project) => {
+      const id = project?.project_id || project?.id;
+      if (!id) {
+        return;
+      }
+      const slug = String(id).toLowerCase();
+      tokenTerminalProjectIndex.set(slug, project);
+      if (project.name) {
+        tokenTerminalProjectNameIndex.set(
+          String(project.name).toLowerCase(),
+          slug
+        );
+      }
+      if (project.symbol) {
+        tokenTerminalProjectSymbolIndex.set(
+          String(project.symbol).toLowerCase(),
+          slug
+        );
+      }
+    });
+    renderTokenTerminalProjectList();
+    updateTokenTerminalStatus(
+      `Loaded ${tokenTerminalProjectIndex.size} coins.`,
+      false
+    );
+  } catch (error) {
+    updateTokenTerminalStatus(
+      "Could not load coins. You can still type a project id.",
+      true
+    );
+  }
+}
+
+async function loadTokenTerminalMetrics() {
+  const baseUrl = resolveApiBaseUrl("tokenterminal");
+  if (!baseUrl) {
+    return;
+  }
+  try {
+    const url = new URL("/api/tokenterminal", baseUrl);
+    url.searchParams.set("path", "/metrics");
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      return;
+    }
+    const payload = await response.json();
+    const metrics = Array.isArray(payload?.data) ? payload.data : payload;
+    if (!Array.isArray(metrics)) {
+      return;
+    }
+    tokenTerminalMetricIndex.clear();
+    metrics.forEach((metric) => {
+      const id = metric?.metric_id || metric?.id;
+      if (!id) {
+        return;
+      }
+      tokenTerminalMetricIndex.set(String(id), metric);
+    });
+    const priceMetric = resolveTokenTerminalPriceMetric();
+    loadTokenTerminalMetricProjects(priceMetric);
+  } catch (error) {}
+}
+
+async function loadTokenTerminalMetricProjects(metricId) {
+  const baseUrl = resolveApiBaseUrl("tokenterminal");
+  if (!baseUrl || !metricId) {
+    return;
+  }
+  try {
+    const url = new URL("/api/tokenterminal", baseUrl);
+    url.searchParams.set("path", `/metrics/${metricId}/projects`);
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      return;
+    }
+    const payload = await response.json();
+    const projects = Array.isArray(payload?.data) ? payload.data : payload;
+    if (!Array.isArray(projects)) {
+      return;
+    }
+    const available = new Set();
+    projects.forEach((project) => {
+      const id = project?.project_id || project?.id || project?.project;
+      if (!id) {
+        return;
+      }
+      available.add(String(id).toLowerCase());
+    });
+    if (available.size) {
+      tokenTerminalAvailableProjects = available;
+      renderTokenTerminalProjectList();
+      updateTokenTerminalStatus(
+        `Loaded ${available.size} coins with price data.`,
+        false
+      );
+    } else {
+      tokenTerminalAvailableProjects = new Set();
+      renderTokenTerminalProjectList();
+      updateTokenTerminalStatus(
+        "Price project list unavailable; using full project list.",
+        false
+      );
+    }
+  } catch (error) {}
+}
+
+function parseTokenTerminalProjectIds(input) {
+  const ids = [];
+  const names = [];
+  const unknown = [];
+  String(input || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      const id = resolveTokenTerminalProjectId(value);
+      if (!id) {
+        return;
+      }
+      const lower = String(id).toLowerCase();
+      if (ids.includes(lower)) {
+        return;
+      }
+      const project = tokenTerminalProjectIndex.get(lower);
+      if (!project) {
+        unknown.push(id);
+        return;
+      }
+      const projectId = project.project_id || project.id || id;
+      ids.push(String(projectId));
+      names.push(project.name || projectId);
+    });
+  return { ids, names, unknown };
+}
+
+function buildTokenTerminalPriceRequest() {
+  const { ids, names, unknown } = getTokenTerminalSelections();
+  if (unknown.length) {
+    throw new Error(`Unknown project id(s): ${unknown.join(", ")}`);
+  }
+  if (!ids.length) {
+    throw new Error("Select at least one coin.");
+  }
+  const metricId = resolveTokenTerminalPriceMetric();
+  const params = new URLSearchParams();
+  const cleanedIds = ids.filter(Boolean);
+  const invalidIds = cleanedIds.filter((id) => !/^[a-z0-9-]+$/i.test(id));
+  if (invalidIds.length) {
+    throw new Error(
+      `Unsupported project id(s): ${invalidIds.join(", ")}. Pick from the list.`
+    );
+  }
+  params.set("project_ids", cleanedIds.join(","));
+  if (elements.dateStart?.value) {
+    params.set("start", elements.dateStart.value);
+  }
+  if (elements.dateEnd?.value) {
+    params.set("end", elements.dateEnd.value);
+  }
+  const path = `/metrics/${metricId}?${params.toString()}`;
+  const label = names.join(", ");
+  return {
+    path,
+    jsonPath: "data",
+    datasetName: `Token Terminal Price: ${label}`.trim(),
+  };
+}
+
+function parseTokenTerminalMetricRequest(endpoint) {
+  if (!endpoint) {
+    return null;
+  }
+  try {
+    const parsed = new URL(endpoint, "https://example.test");
+    const match = parsed.pathname.match(/^\/metrics\/([^/]+)$/);
+    if (!match) {
+      return null;
+    }
+    const metricId = match[1];
+    const projectParam = parsed.searchParams.get("project_ids");
+    if (!projectParam) {
+      return null;
+    }
+    const projectIds = projectParam
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => value.toLowerCase());
+    if (!projectIds.length) {
+      return null;
+    }
+    return {
+      metricId,
+      projectIds,
+      start: parsed.searchParams.get("start") || "",
+      end: parsed.searchParams.get("end") || "",
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function isTokenTerminalProjectUnavailableError(message) {
+  if (!message) {
+    return false;
+  }
+  return (
+    /projects?\s+are\s+not\s+available/i.test(message) ||
+    /project\s+not\s+found/i.test(message) ||
+    /available\s+projects/i.test(message)
+  );
+}
+
+async function fetchTokenTerminalProjectMetrics(metricId, projectIds, range) {
+  const baseUrl = resolveApiBaseUrl("tokenterminal");
+  if (!baseUrl) {
+    throw new Error("Set API host to enable Token Terminal.");
+  }
+  const rows = [];
+  for (const projectId of projectIds) {
+    const params = new URLSearchParams();
+    params.set("metric_ids", metricId);
+    if (range && range.start) {
+      params.set("start", range.start);
+    }
+    if (range && range.end) {
+      params.set("end", range.end);
+    }
+    const url = new URL("/api/tokenterminal", baseUrl);
+    url.searchParams.set("path", `/projects/${projectId}/metrics?${params.toString()}`);
+    const response = await fetch(url.toString());
+    const bodyText = await response.text();
+    if (!response.ok) {
+      let message = bodyText || `Request failed (${response.status})`;
+      if (bodyText.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(bodyText);
+          if (parsed && parsed.error) {
+            message = parsed.error;
+          }
+          if (parsed && parsed.message) {
+            message = parsed.message;
+          }
+        } catch (error) {}
+      }
+      throw new Error(message);
+    }
+    let payload;
+    try {
+      payload = JSON.parse(bodyText);
+    } catch (error) {
+      continue;
+    }
+    const dataRows = Array.isArray(payload?.data) ? payload.data : [];
+    const projectMeta = tokenTerminalProjectIndex.get(
+      String(projectId).toLowerCase()
+    );
+    const projectName = projectMeta?.name || projectId;
+    dataRows.forEach((row) => {
+      if (!row) {
+        return;
+      }
+      const rawTimestamp = row.timestamp || row.date || row.datetime;
+      const timestamp = parseDateValue(rawTimestamp) ?? rawTimestamp;
+      const value =
+        row.value !== undefined
+          ? row.value
+          : row.metric_value !== undefined
+          ? row.metric_value
+          : row.price;
+      if (!timestamp || value === undefined) {
+        return;
+      }
+      rows.push({
+        timestamp,
+        project_id: projectId,
+        project_name: projectName,
+        value,
+      });
+    });
+  }
+  return rows;
+}
+
 function buildDefillamaRequest() {
   const metricKey = elements.defillamaMetric.value;
   const metric = DEFILLAMA_METRIC_CONFIGS[metricKey];
@@ -971,6 +1500,25 @@ function inferColumnType(values) {
     return "numeric";
   }
   return "categorical";
+}
+
+function autoSetAxisTypeFromX() {
+  if (!elements.xAxisType || !currentRows.length) {
+    return;
+  }
+  const xColumn = elements.xColumn.value || currentColumns[0];
+  if (!xColumn) {
+    return;
+  }
+  const sample = currentRows.slice(0, 20).map((row) => row[xColumn]);
+  const inferred = inferColumnType(sample);
+  if (inferred === "time" && elements.xAxisType.value !== "time") {
+    elements.xAxisType.value = "time";
+    return;
+  }
+  if (inferred === "numeric" && elements.xAxisType.value === "category") {
+    elements.xAxisType.value = "value";
+  }
 }
 
 function countNumericColumns(columns, rows) {
@@ -1398,6 +1946,82 @@ function syncDateFilterState() {
   }
 }
 
+function formatDateInputValue(date) {
+  if (!date) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function applyDateRangePreset(preset) {
+  if (!elements.dateStart || !elements.dateEnd) {
+    return;
+  }
+  const now = new Date();
+  let start = null;
+  let end = null;
+
+  switch (preset) {
+    case "last7":
+      end = now;
+      start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      break;
+    case "last30":
+      end = now;
+      start = new Date(now);
+      start.setDate(start.getDate() - 30);
+      break;
+    case "quarter":
+      end = now;
+      start = new Date(now);
+      start.setMonth(start.getMonth() - 3);
+      break;
+    case "last6m":
+      end = now;
+      start = new Date(now);
+      start.setMonth(start.getMonth() - 6);
+      break;
+    case "ytd":
+      end = now;
+      start = new Date(now.getFullYear(), 0, 1);
+      break;
+    case "lastYear":
+      end = now;
+      start = new Date(now);
+      start.setFullYear(start.getFullYear() - 1);
+      break;
+    case "last3y":
+      end = now;
+      start = new Date(now);
+      start.setFullYear(start.getFullYear() - 3);
+      break;
+    case "last5y":
+      end = now;
+      start = new Date(now);
+      start.setFullYear(start.getFullYear() - 5);
+      break;
+    case "all":
+      start = null;
+      end = null;
+      break;
+    case "custom":
+    default:
+      return;
+  }
+
+  suppressDatePresetSync = true;
+  elements.dateStart.value = start ? formatDateInputValue(start) : "";
+  elements.dateEnd.value = end ? formatDateInputValue(end) : "";
+  suppressDatePresetSync = false;
+  if (elements.xAxisType && (start || end)) {
+    elements.xAxisType.value = "time";
+  }
+  syncDateFilterState();
+  zoomSnapshot = null;
+  scheduleUpdateChart();
+}
+
 function syncChartModeUI() {
   const type = elements.chartType.value;
   elements.comboDefaults.classList.toggle("is-hidden", type !== "combo");
@@ -1675,6 +2299,7 @@ function setActiveDataset(datasetId) {
   currentColumns = dataset.columns;
   updateStatusForDataset(dataset);
   refreshColumnControls();
+  autoSetAxisTypeFromX();
   renderPreview();
   renderDatasetList();
   updateChart();
@@ -1912,6 +2537,60 @@ function extractRowsFromApiResponse(payload, path, strictPath = false) {
   return normalizeRowsToTable(rows);
 }
 
+function pivotTokenTerminalMetrics(rows) {
+  if (!Array.isArray(rows) || !rows.length) {
+    return null;
+  }
+  const columns = new Set(["timestamp"]);
+  const byTimestamp = new Map();
+  let hasProject = false;
+  let hasValue = false;
+  rows.forEach((row) => {
+    if (!row) {
+      return;
+    }
+    const timestamp = row.timestamp || row.date || row.datetime;
+    if (!timestamp) {
+      return;
+    }
+    const projectName = row.project_name || row.name || "";
+    const projectId = row.project_id || row.project || "";
+    const symbol = row.symbol || "";
+    let key = projectName || projectId || symbol || "";
+    if (projectName && projectId) {
+      if (projectName.toLowerCase() !== String(projectId).toLowerCase()) {
+        key = `${projectName} (${projectId})`;
+      }
+    } else if (!key && symbol) {
+      key = symbol;
+    }
+    const value =
+      row.value !== undefined
+        ? row.value
+        : row.metric_value !== undefined
+        ? row.metric_value
+        : row.price;
+    if (!key || value === undefined) {
+      return;
+    }
+    hasProject = true;
+    hasValue = true;
+    columns.add(key);
+    const entry = byTimestamp.get(timestamp) || { timestamp };
+    entry[key] = value;
+    byTimestamp.set(timestamp, entry);
+  });
+  if (!hasProject || !hasValue) {
+    return null;
+  }
+  const rowsOut = Array.from(byTimestamp.values()).sort((a, b) => {
+    const aTime = parseDateValue(a.timestamp) || 0;
+    const bTime = parseDateValue(b.timestamp) || 0;
+    return aTime - bTime;
+  });
+  return { rows: rowsOut, columns: Array.from(columns) };
+}
+
 async function fetchApiDataset() {
   if (!apiEnabled) {
     updateApiStatus("API connectors are disabled on public hosts.", true);
@@ -1940,6 +2619,9 @@ async function fetchApiDataset() {
     updateApiStatus("Set an API host to enable connectors.", true);
     return;
   }
+  const normalizedEndpoint = endpoint.startsWith("/")
+    ? endpoint
+    : `/${endpoint}`;
   const datasetName =
     elements.apiDatasetName && elements.apiDatasetName.value.trim()
       ? elements.apiDatasetName.value.trim()
@@ -1948,6 +2630,62 @@ async function fetchApiDataset() {
     ? elements.apiJsonPath.value.trim()
     : "";
   const sdkArgs = elements.apiSdkArgs ? elements.apiSdkArgs.value.trim() : "";
+  const tokenTerminalRequest =
+    provider === "tokenterminal"
+      ? parseTokenTerminalMetricRequest(normalizedEndpoint)
+      : null;
+  if (provider === "tokenterminal" && tokenTerminalRequest) {
+    try {
+      updateTokenTerminalStatus("Loading Token Terminal price data...", false);
+      const range = {
+        start:
+          tokenTerminalRequest.start ||
+          (elements.dateStart ? elements.dateStart.value : ""),
+        end:
+          tokenTerminalRequest.end ||
+          (elements.dateEnd ? elements.dateEnd.value : ""),
+      };
+      const mappedIds = tokenTerminalRequest.projectIds.map((id) => {
+        const project = tokenTerminalProjectIndex.get(String(id).toLowerCase());
+        return project?.project_id || project?.id || id;
+      });
+      const rows = await fetchTokenTerminalProjectMetrics(
+        tokenTerminalRequest.metricId,
+        mappedIds,
+        range
+      );
+      const pivoted = pivotTokenTerminalMetrics(rows);
+      if (pivoted && pivoted.rows.length) {
+        if (
+          tokenTerminalRequest.projectIds.length > 1 &&
+          elements.compareMode &&
+          elements.compareMode.value === "none"
+        ) {
+          elements.compareMode.value = "percent";
+        }
+        if (elements.xAxisType && elements.xAxisType.value !== "time") {
+          elements.xAxisType.value = "time";
+        }
+        addDataset(datasetName, pivoted.rows, pivoted.columns);
+        updateApiStatus(`Loaded ${pivoted.rows.length} rows`, false);
+        updateTokenTerminalStatus("", false);
+        return;
+      }
+      updateTokenTerminalStatus("No rows returned for selected coins.", true);
+      updateApiStatus("No rows returned for selected coins.", true);
+      return;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Token Terminal fetch failed.";
+      updateTokenTerminalStatus(message, true);
+      updateApiStatus(message, true);
+      return;
+    }
+  }
+  const usePublicDefiLlama =
+    provider === "defillama" &&
+    (normalizedEndpoint.startsWith("/protocol/") ||
+      normalizedEndpoint.startsWith("/summary/"));
 
   apiFetchInFlight = true;
   syncApiControls();
@@ -1955,7 +2693,13 @@ async function fetchApiDataset() {
 
   try {
     let url;
-    if (provider === "defillama" && baseUrl === DEFILLAMA_PUBLIC_BASE_URL) {
+    if (usePublicDefiLlama) {
+      url = new URL(
+        /^https?:\/\//i.test(endpoint)
+          ? endpoint
+          : `${DEFILLAMA_PUBLIC_BASE_URL}${normalizedEndpoint}`
+      );
+    } else if (provider === "defillama" && baseUrl === DEFILLAMA_PUBLIC_BASE_URL) {
       const trimmed = endpoint.replace(/^\//, "");
       url = new URL(
         /^https?:\/\//i.test(endpoint) ? endpoint : `${baseUrl}/${trimmed}`
@@ -1998,6 +2742,18 @@ async function fetchApiDataset() {
     } catch (error) {
       throw new Error("Response was not valid JSON.");
     }
+    if (provider === "tokenterminal") {
+      const rawRows = Array.isArray(payload?.data) ? payload.data : null;
+      const pivoted = pivotTokenTerminalMetrics(rawRows);
+      if (pivoted && pivoted.rows.length) {
+        if (elements.xAxisType && elements.xAxisType.value !== "time") {
+          elements.xAxisType.value = "time";
+        }
+        addDataset(datasetName, pivoted.rows, pivoted.columns);
+        updateApiStatus(`Loaded ${pivoted.rows.length} rows`, false);
+        return;
+      }
+    }
     const data = extractRowsFromApiResponse(payload, jsonPath, true);
     if (!data) {
       throw new Error("JSON path not found in response.");
@@ -2011,6 +2767,58 @@ async function fetchApiDataset() {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "API fetch failed.";
+    if (provider === "tokenterminal") {
+      if (isTokenTerminalProjectUnavailableError(message)) {
+        const parsedRequest = parseTokenTerminalMetricRequest(endpoint);
+        if (parsedRequest) {
+          try {
+            updateTokenTerminalStatus(
+              "Retrying Token Terminal price via per-project endpoint...",
+              false
+            );
+            const range = {
+              start:
+                parsedRequest.start ||
+                (elements.dateStart ? elements.dateStart.value : ""),
+              end:
+                parsedRequest.end ||
+                (elements.dateEnd ? elements.dateEnd.value : ""),
+            };
+            const rows = await fetchTokenTerminalProjectMetrics(
+              parsedRequest.metricId,
+              parsedRequest.projectIds,
+              range
+            );
+            const pivoted = pivotTokenTerminalMetrics(rows);
+            if (pivoted && pivoted.rows.length) {
+              if (
+                parsedRequest.projectIds.length > 1 &&
+                elements.compareMode &&
+                elements.compareMode.value === "none"
+              ) {
+                elements.compareMode.value = "percent";
+              }
+              if (elements.xAxisType && elements.xAxisType.value !== "time") {
+                elements.xAxisType.value = "time";
+              }
+              addDataset(datasetName, pivoted.rows, pivoted.columns);
+              updateApiStatus(`Loaded ${pivoted.rows.length} rows`, false);
+              updateTokenTerminalStatus("", false);
+              return;
+            }
+          } catch (fallbackError) {
+            const fallbackMessage =
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : "Token Terminal fallback failed.";
+            updateTokenTerminalStatus(fallbackMessage, true);
+            updateApiStatus(fallbackMessage, true);
+            return;
+          }
+        }
+      }
+      updateTokenTerminalStatus(message, true);
+    }
     updateApiStatus(message, true);
   } finally {
     apiFetchInFlight = false;
@@ -2317,8 +3125,8 @@ function resolveTooltipHeader(item) {
 
 function parseXValue(value, axisType) {
   if (axisType === "time") {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? value : parsed;
+    const parsed = parseDateValue(value);
+    return parsed === null ? value : parsed;
   }
   if (axisType === "value") {
     const parsed = Number(value);
@@ -2341,11 +3149,27 @@ function parseAnnotationX(value, axisType) {
   return value;
 }
 
+function isPlausibleDateMs(value) {
+  if (!Number.isFinite(value)) {
+    return false;
+  }
+  const min = Date.UTC(1970, 0, 1);
+  const max = Date.UTC(2100, 0, 1);
+  return value >= min && value <= max;
+}
+
 function parseDateValue(value) {
   if (value === null || value === undefined || value === "") {
     return null;
   }
   if (typeof value === "number" && Number.isFinite(value)) {
+    if (isPlausibleDateMs(value)) {
+      return value;
+    }
+    const asSeconds = value * 1000;
+    if (isPlausibleDateMs(asSeconds)) {
+      return asSeconds;
+    }
     return value;
   }
   const text = String(value).trim();
@@ -2488,6 +3312,54 @@ function normalizeRowsToPercent(rows, yColumns) {
     yColumns.forEach((col) => {
       const value = row.values[col] || 0;
       values[col] = total === 0 ? 0 : (value / total) * 100;
+    });
+    return { x: row.x, values };
+  });
+}
+
+function normalizeRowsToPerformance(rows, yColumns, mode) {
+  if (mode !== "percent" && mode !== "index") {
+    return rows;
+  }
+  const sorted = rows.slice().sort((a, b) => {
+    if (a.x === b.x) return 0;
+    return a.x > b.x ? 1 : -1;
+  });
+  const baselines = {};
+  yColumns.forEach((col) => {
+    baselines[col] = null;
+  });
+  sorted.forEach((row) => {
+    yColumns.forEach((col) => {
+      if (baselines[col] !== null) {
+        return;
+      }
+      const value = row.values[col];
+      if (value !== null && value !== undefined && Number.isFinite(value)) {
+        baselines[col] = value;
+      }
+    });
+  });
+  return rows.map((row) => {
+    const values = {};
+    yColumns.forEach((col) => {
+      const base = baselines[col];
+      const value = row.values[col];
+      if (
+        base === null ||
+        base === 0 ||
+        value === null ||
+        value === undefined ||
+        !Number.isFinite(value)
+      ) {
+        values[col] = null;
+        return;
+      }
+      if (mode === "percent") {
+        values[col] = ((value / base) - 1) * 100;
+        return;
+      }
+      values[col] = (value / base) * 100;
     });
     return { x: row.x, values };
   });
@@ -2834,6 +3706,7 @@ function buildStandardOption() {
   const yColumns = getSelectedYColumns();
   const axisType = elements.xAxisType.value;
   const chartType = elements.chartType.value;
+  const compareMode = elements.compareMode ? elements.compareMode.value : "none";
   const stackedPercent = elements.stackedPercent.checked;
   const stacked = elements.stacked.checked || stackedPercent;
   const smoothGlobal = elements.smooth.checked;
@@ -2850,7 +3723,7 @@ function buildStandardOption() {
   const rows = buildRowData(xColumn, yColumns, axisType, sortByX);
   const normalizedRows = stackedPercent
     ? normalizeRowsToPercent(rows, yColumns)
-    : rows;
+    : normalizeRowsToPerformance(rows, yColumns, compareMode);
 
   const series = [];
   const trendlines = [];
@@ -2873,11 +3746,17 @@ function buildStandardOption() {
     const yAxisIndex = override.axis === "right" ? 1 : 0;
     const valueFormat = override.valueFormat || "auto";
     const valueSuffix = override.valueSuffix || "none";
+    const effectiveFormat =
+      compareMode === "percent"
+        ? "percent"
+        : compareMode === "index"
+        ? "number"
+        : valueFormat;
     if (yAxisIndex === 1) {
       usesRightAxis = true;
     }
-    formatBySeries[col] = valueFormat;
-    suffixBySeries[col] = valueSuffix;
+    formatBySeries[col] = effectiveFormat;
+    suffixBySeries[col] = compareMode === "index" ? "none" : valueSuffix;
 
     const data = normalizedRows.map((row) => [
       row.x,
@@ -2892,9 +3771,9 @@ function buildStandardOption() {
       label: {
         show: showLabels,
         formatter: (params) =>
-          formatValue(extractSeriesValue(params), valueFormat, {
+          formatValue(extractSeriesValue(params), effectiveFormat, {
             stackedPercent,
-            suffix: valueSuffix,
+            suffix: compareMode === "index" ? "none" : valueSuffix,
           }),
       },
       emphasis: { focus: "series" },
@@ -2993,10 +3872,17 @@ function buildStandardOption() {
     showRightAxis
   );
 
+  const defaultLeftLabel =
+    elements.yAxisLabel.value ||
+    (compareMode === "percent"
+      ? "Performance (%)"
+      : compareMode === "index"
+      ? "Index (Base=100)"
+      : "");
   const yAxis = [
     {
       type: yScale,
-      name: elements.yAxisLabel.value,
+      name: defaultLeftLabel,
       nameGap: yAxisSpacing.nameGap,
       nameLocation: "middle",
       nameRotate: 90,
@@ -3029,9 +3915,16 @@ function buildStandardOption() {
   }
 
   if (showRightAxis) {
+    const defaultRightLabel =
+      elements.yAxisRightLabel.value ||
+      (compareMode === "percent"
+        ? "Performance (%)"
+        : compareMode === "index"
+        ? "Index (Base=100)"
+        : "");
     yAxis.push({
       type: yScaleRight,
-      name: elements.yAxisRightLabel.value,
+      name: defaultRightLabel,
       nameGap: yAxisRightSpacing.nameGap,
       nameLocation: "middle",
       nameRotate: -90,
@@ -3580,17 +4473,46 @@ function updateChart() {
   }
 }
 
+function getExportDataUrl() {
+  if (!chart) {
+    return null;
+  }
+  const scale = parseNumber(elements.exportScale.value) || 2;
+  const backgroundColor = elements.transparentBg.checked
+    ? "transparent"
+    : elements.backgroundColor.value;
+  const option = chart.getOption();
+  const dataZoom = Array.isArray(option?.dataZoom) ? option.dataZoom : null;
+  const hasSlider =
+    dataZoom &&
+    dataZoom.some((entry) => entry.type === "slider" && entry.show !== false);
+
+  if (hasSlider) {
+    const hidden = dataZoom.map((entry) =>
+      entry.type === "slider" ? { ...entry, show: false } : { ...entry }
+    );
+    chart.setOption({ dataZoom: hidden }, false);
+  }
+
+  const dataUrl = chart.getDataURL({
+    type: "png",
+    pixelRatio: scale,
+    backgroundColor,
+  });
+
+  if (hasSlider) {
+    chart.setOption({ dataZoom }, false);
+  }
+
+  return dataUrl;
+}
+
 async function copyChart() {
   try {
-    const scale = parseNumber(elements.exportScale.value) || 2;
-    const backgroundColor = elements.transparentBg.checked
-      ? "transparent"
-      : elements.backgroundColor.value;
-    const dataUrl = chart.getDataURL({
-      type: "png",
-      pixelRatio: scale,
-      backgroundColor,
-    });
+    const dataUrl = getExportDataUrl();
+    if (!dataUrl) {
+      throw new Error("No chart available");
+    }
     const blob = await (await fetch(dataUrl)).blob();
     await navigator.clipboard.write([
       new ClipboardItem({ "image/png": blob }),
@@ -3601,15 +4523,11 @@ async function copyChart() {
 }
 
 function downloadChart() {
-  const scale = parseNumber(elements.exportScale.value) || 2;
-  const backgroundColor = elements.transparentBg.checked
-    ? "transparent"
-    : elements.backgroundColor.value;
-  const dataUrl = chart.getDataURL({
-    type: "png",
-    pixelRatio: scale,
-    backgroundColor,
-  });
+  const dataUrl = getExportDataUrl();
+  if (!dataUrl) {
+    updateAdvancedStatus("Download failed. No chart available.", true);
+    return;
+  }
   const link = document.createElement("a");
   const name = elements.exportName.value.trim() || "chart";
   link.href = dataUrl;
@@ -4041,6 +4959,10 @@ function getSettings() {
     waterfallMode: elements.waterfallMode.value,
     waterfallPositive: elements.waterfallPositive.value,
     waterfallNegative: elements.waterfallNegative.value,
+    compareMode: elements.compareMode ? elements.compareMode.value : "none",
+    dateRangePreset: elements.dateRangePreset
+      ? elements.dateRangePreset.value
+      : "custom",
     dateStart: elements.dateStart.value,
     dateEnd: elements.dateEnd.value,
     advancedJson: elements.advancedJson.value,
@@ -4270,6 +5192,12 @@ function applyControlSettings(settings) {
   }
   if (settings.waterfallNegative !== undefined) {
     elements.waterfallNegative.value = settings.waterfallNegative;
+  }
+  if (settings.compareMode !== undefined && elements.compareMode) {
+    elements.compareMode.value = settings.compareMode;
+  }
+  if (settings.dateRangePreset !== undefined && elements.dateRangePreset) {
+    elements.dateRangePreset.value = settings.dateRangePreset;
   }
   if (settings.dateStart !== undefined) {
     elements.dateStart.value = settings.dateStart;
@@ -4828,6 +5756,56 @@ function attachListeners() {
     });
   }
 
+  if (elements.tokenTerminalLoadPrice) {
+    elements.tokenTerminalLoadPrice.addEventListener("click", () => {
+      try {
+        if (elements.apiProvider) {
+          elements.apiProvider.value = "tokenterminal";
+        }
+        syncApiProviderUI();
+        const request = buildTokenTerminalPriceRequest();
+        if (elements.apiEndpoint) {
+          elements.apiEndpoint.value = request.path;
+        }
+        if (elements.apiJsonPath) {
+          elements.apiJsonPath.value = request.jsonPath;
+        }
+        if (elements.apiDatasetName) {
+          elements.apiDatasetName.value = request.datasetName;
+        }
+        updateTokenTerminalStatus("", false);
+        fetchApiDataset();
+      } catch (error) {
+        updateTokenTerminalStatus(
+          error instanceof Error ? error.message : "Invalid selection.",
+          true
+        );
+      }
+    });
+  }
+
+  if (elements.tokenTerminalAddCoin) {
+    elements.tokenTerminalAddCoin.addEventListener("click", () => {
+      addTokenTerminalSelection(elements.tokenTerminalProject?.value || "");
+    });
+  }
+
+  if (elements.tokenTerminalClearCoins) {
+    elements.tokenTerminalClearCoins.addEventListener("click", () => {
+      clearTokenTerminalSelections();
+      updateTokenTerminalStatus("Cleared coin list.", false);
+    });
+  }
+
+  if (elements.tokenTerminalProject) {
+    elements.tokenTerminalProject.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addTokenTerminalSelection(elements.tokenTerminalProject.value || "");
+      }
+    });
+  }
+
   if (apiEnabled) {
     [
       elements.apiEndpoint,
@@ -4862,6 +5840,9 @@ function attachListeners() {
     elements.clearDateRange.addEventListener("click", () => {
       elements.dateStart.value = "";
       elements.dateEnd.value = "";
+      if (elements.dateRangePreset) {
+        elements.dateRangePreset.value = "all";
+      }
       syncDateFilterState();
       zoomSnapshot = null;
       scheduleUpdateChart();
@@ -4873,16 +5854,32 @@ function attachListeners() {
     if (hasValue && elements.xAxisType.value !== "time") {
       elements.xAxisType.value = "time";
     }
+    if (!suppressDatePresetSync && elements.dateRangePreset) {
+      elements.dateRangePreset.value = hasValue ? "custom" : "all";
+    }
     syncDateFilterState();
     zoomSnapshot = null;
     scheduleUpdateChart();
   };
+
+  if (elements.dateRangePreset) {
+    elements.dateRangePreset.addEventListener("change", () => {
+      applyDateRangePreset(elements.dateRangePreset.value);
+    });
+  }
 
   if (elements.dateStart && elements.dateEnd) {
     elements.dateStart.addEventListener("input", handleDateChange);
     elements.dateStart.addEventListener("change", handleDateChange);
     elements.dateEnd.addEventListener("input", handleDateChange);
     elements.dateEnd.addEventListener("change", handleDateChange);
+  }
+
+  if (elements.xColumn) {
+    elements.xColumn.addEventListener("change", () => {
+      autoSetAxisTypeFromX();
+      scheduleUpdateChart();
+    });
   }
 
   elements.chartType.addEventListener("change", () => {
@@ -4922,6 +5919,7 @@ function attachListeners() {
 
   const inputsToWatch = [
     elements.xColumn,
+    elements.compareMode,
     elements.comboDefaultType,
     elements.stacked,
     elements.smooth,

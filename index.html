@@ -341,6 +341,47 @@
                   </div>
                   <p id="defillamaStatus" class="hint"></p>
                 </div>
+                <div id="tokenTerminalGuided" class="guided-api is-hidden">
+                  <h3>Token Terminal quick select</h3>
+                  <div class="field row">
+                    <div>
+                      <label for="tokenTerminalProject">Add coin: Price</label>
+                      <input
+                        id="tokenTerminalProject"
+                        list="tokenTerminalProjectList"
+                        type="text"
+                        placeholder="ethereum, solana"
+                      />
+                      <datalist id="tokenTerminalProjectList"></datalist>
+                      <p class="hint">Pick a coin, then click “Add coin” to build a list.</p>
+                      <div class="field row token-terminal-actions">
+                        <button
+                          id="tokenTerminalAddCoin"
+                          class="secondary"
+                          type="button"
+                        >
+                          Add coin
+                        </button>
+                        <button
+                          id="tokenTerminalClearCoins"
+                          class="secondary"
+                          type="button"
+                        >
+                          Clear coins
+                        </button>
+                      </div>
+                      <div id="tokenTerminalSelectedList" class="token-terminal-selected"></div>
+                    </div>
+                    <button
+                      id="tokenTerminalLoadPrice"
+                      class="secondary"
+                      type="button"
+                    >
+                      Load price
+                    </button>
+                  </div>
+                  <p id="tokenTerminalStatus" class="hint"></p>
+                </div>
                 <div class="field">
                   <label for="apiBaseUrl">API host</label>
                   <input
@@ -465,6 +506,21 @@
                   <label>Date range (X axis)</label>
                   <div class="date-range">
                     <div>
+                      <label for="dateRangePreset">Preset</label>
+                      <select id="dateRangePreset">
+                        <option value="custom">Custom</option>
+                        <option value="last7">Last 7 days</option>
+                        <option value="last30">Last 30 days</option>
+                        <option value="quarter">Last quarter</option>
+                        <option value="last6m">Last 6 months</option>
+                        <option value="ytd">Year to date</option>
+                        <option value="lastYear">Last year</option>
+                        <option value="last3y">Last 3 years</option>
+                        <option value="last5y">Last 5 years</option>
+                        <option value="all">All time</option>
+                      </select>
+                    </div>
+                    <div>
                       <label for="dateStart">Start</label>
                       <input id="dateStart" type="date" />
                     </div>
@@ -558,6 +614,16 @@
                 <p id="boxplotHint" class="hint">
                   Box plot uses selected Y columns.
                 </p>
+                <div class="field row">
+                  <div>
+                    <label for="compareMode">Comparison</label>
+                    <select id="compareMode">
+                      <option value="none">Raw values</option>
+                      <option value="percent">Percent change</option>
+                      <option value="index">Index to 100</option>
+                    </select>
+                  </div>
+                </div>
                 <div class="field row">
                   <label class="checkbox">
                     <input id="stacked" type="checkbox" />
