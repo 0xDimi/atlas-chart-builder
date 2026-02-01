@@ -385,6 +385,10 @@ const elements = {
   xAxisLabel: document.getElementById("xAxisLabel"),
   yAxisLabel: document.getElementById("yAxisLabel"),
   yAxisRightLabel: document.getElementById("yAxisRightLabel"),
+  yAxisFormat: document.getElementById("yAxisFormat"),
+  yAxisSuffix: document.getElementById("yAxisSuffix"),
+  yAxisRightFormat: document.getElementById("yAxisRightFormat"),
+  yAxisRightSuffix: document.getElementById("yAxisRightSuffix"),
   xAxisLabelSize: document.getElementById("xAxisLabelSize"),
   xAxisNameSize: document.getElementById("xAxisNameSize"),
   xAxisLabelFont: document.getElementById("xAxisLabelFont"),
@@ -2159,6 +2163,10 @@ function captureDefaultControlState() {
     elements.xAxisLabel,
     elements.yAxisLabel,
     elements.yAxisRightLabel,
+    elements.yAxisFormat,
+    elements.yAxisSuffix,
+    elements.yAxisRightFormat,
+    elements.yAxisRightSuffix,
     elements.xAxisLabelSize,
     elements.xAxisNameSize,
     elements.xAxisLabelFont,
@@ -3366,6 +3374,18 @@ function normalizeRowsToPerformance(rows, yColumns, mode) {
 }
 
 function resolveAxisFormatting(yColumns, axisSide) {
+  const axisFormat =
+    axisSide === "right" ? elements.yAxisRightFormat : elements.yAxisFormat;
+  const axisSuffix =
+    axisSide === "right" ? elements.yAxisRightSuffix : elements.yAxisSuffix;
+  const formatOverride = axisFormat ? axisFormat.value : "auto";
+  const suffixOverride = axisSuffix ? axisSuffix.value : "none";
+  if (formatOverride !== "auto" || suffixOverride !== "none") {
+    return {
+      format: formatOverride !== "auto" ? formatOverride : "auto",
+      suffix: suffixOverride !== "none" ? suffixOverride : "none",
+    };
+  }
   const formats = new Set();
   const suffixes = new Set();
   yColumns.forEach((col) => {
@@ -4908,6 +4928,14 @@ function getSettings() {
     xAxisLabel: elements.xAxisLabel.value,
     yAxisLabel: elements.yAxisLabel.value,
     yAxisRightLabel: elements.yAxisRightLabel.value,
+    yAxisFormat: elements.yAxisFormat ? elements.yAxisFormat.value : "auto",
+    yAxisSuffix: elements.yAxisSuffix ? elements.yAxisSuffix.value : "none",
+    yAxisRightFormat: elements.yAxisRightFormat
+      ? elements.yAxisRightFormat.value
+      : "auto",
+    yAxisRightSuffix: elements.yAxisRightSuffix
+      ? elements.yAxisRightSuffix.value
+      : "none",
     xAxisLabelSize: elements.xAxisLabelSize.value,
     xAxisNameSize: elements.xAxisNameSize.value,
     xAxisLabelFont: elements.xAxisLabelFont.value,
@@ -5039,6 +5067,18 @@ function applyControlSettings(settings) {
   }
   if (settings.yAxisRightLabel !== undefined) {
     elements.yAxisRightLabel.value = settings.yAxisRightLabel;
+  }
+  if (settings.yAxisFormat !== undefined && elements.yAxisFormat) {
+    elements.yAxisFormat.value = settings.yAxisFormat;
+  }
+  if (settings.yAxisSuffix !== undefined && elements.yAxisSuffix) {
+    elements.yAxisSuffix.value = settings.yAxisSuffix;
+  }
+  if (settings.yAxisRightFormat !== undefined && elements.yAxisRightFormat) {
+    elements.yAxisRightFormat.value = settings.yAxisRightFormat;
+  }
+  if (settings.yAxisRightSuffix !== undefined && elements.yAxisRightSuffix) {
+    elements.yAxisRightSuffix.value = settings.yAxisRightSuffix;
   }
   if (settings.xAxisLabelSize !== undefined) {
     elements.xAxisLabelSize.value = settings.xAxisLabelSize;
